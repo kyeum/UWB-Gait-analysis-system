@@ -94,12 +94,12 @@ void StartDefaultTask(void const * argument);
 
 	FRESULT res;                                          /* FatFs function common result code */
 	uint32_t byteswritten, bytesread;                     /* File write/read counts */
-	uint8_t wtext[] = "Hello from kwyeum!!xx"; 			  /* File write buffer */
+	uint8_t wtext[] = "Hello from kyeum!"; 			      /* File write start buffer */
 	uint8_t rtext[100];                                   /* File read buffer */
 	
 	FATFS myFATAS;
 	FIL myFILE;
-	UINT testByte; // error detection 
+	UINT testByte; 										  // error detection 
 
 	uint16_t adcValArray[5] = {0,};
 	//IMU version 
@@ -111,7 +111,6 @@ void StartDefaultTask(void const * argument);
 	//Timer
 	uint16_t ms_tmr = 0;
 	uint16_t _10ms_tmr = 0;
-
 	uint16_t ms_sv_tmr = 0;
 
 	bool datasave_flg = true;
@@ -157,6 +156,7 @@ int main(void)
   MX_TIM4_Init();
   MX_USART6_UART_Init();
   MX_SDIO_SD_Init();
+  
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
@@ -585,26 +585,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-    
-    
-                 
   /* init code for FATFS */
-  MX_FATFS_Init();
+	MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
-	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-	
-	
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1); // setup local SD memory path
 	char testname[20];
-	//sprintf(testname,"
 	
 	char filetxt[5] = ".txt"; // directory
 	f_mkdir(testname);
-	
-	
 	//strcat(testnum,filetxt);
-	
-	
 	
 	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
@@ -622,10 +612,6 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {	   
-		 //10ms timer
-//	if (_10ms_flg){ //2ms 
-//		//tx data structure
-//			_10ms_flg = false;
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
 		//time
@@ -659,10 +645,6 @@ void StartDefaultTask(void const * argument)
 			dataend_flg = false;
 			HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 			}
-	
-		
-		
-	//}
   /* USER CODE END 5 */ 
 }
 

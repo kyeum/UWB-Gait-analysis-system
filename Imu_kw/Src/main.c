@@ -204,8 +204,11 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  osThreadDef(defaultTask_1, StartDefaultTask_1, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask_1), NULL);
+
+  osThreadDef(defaultTask_2, StartDefaultTask_2, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask_2), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -633,17 +636,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void System_commend(){
 	// --> data set up, save for the system 
 	while(IsDataAvailable()){ 
-			  if (Get_after("hello", 5, buffer))
-				{
-					
+			  if(Get_after("hello", 5, buffer))
+				{	
 					//clear
 				  if(strcmp(buffer, "setup") == 0)
 				  {	
-					  
 					  stop = true;
+					  f_mkdir(buffer);
 //						char filetxt[5] = ".txt";
 //						strcat(testnum,buffer);
-//						f_mkdir(testnum);
 //						strcat(testnum,filetxt);
 						
 					  if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
@@ -658,7 +659,6 @@ void System_commend(){
 						osDelay(100);	
 						}  
 						memset(buffer, 0, 5 * sizeof(char));
-
 				  }
 			  else if(strcmp(buffer, "start") == 0)
 				  {	
@@ -679,7 +679,7 @@ void System_commend(){
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+void StartDefaultTask_1(void const * argument)
 {
     
     
@@ -739,11 +739,7 @@ void StartDefaultTask(void const * argument)
 	
 	txdata[25] = 0xFF;
 	txdata[26] = 0xFE;
-	
-	
-	
-	
-	
+		
 	//SAVE DATA
 	if(datasave_flg){
 	for(int i =0; i<26; i++) {
@@ -773,6 +769,20 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */ 
 }
 
+
+void StartDefaultTask_2(void const * argument)
+{
+    
+  /* Infinite loop */
+  for(;;)
+  {
+  /* USER CODE BEGIN 5 */ 
+	//check up the comm data to transmit -- 
+  
+  }
+  
+  /* USER CODE END 5 */ 
+}
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM5 interrupt took place, inside
