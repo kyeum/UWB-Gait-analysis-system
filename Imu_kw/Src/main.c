@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include "UartRingbuffer.h"
+//#include "UartRingbuffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,8 +47,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
+I2C_HandleTypeDef hi2c1;
 
 SD_HandleTypeDef hsd;
 DMA_HandleTypeDef hdma_sdio_rx;
@@ -70,12 +69,12 @@ osThreadId defaultTaskHandle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_I2C1_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -99,18 +98,15 @@ void StartDefaultTask(void const * argument);
 	FIL myFILE;
 	UINT testByte; // error detection 
 	
-//ADC Array		
-	uint16_t adcValArray[5];
-
 //Communication buffers
 	uint8_t txdata[27]; // 28byte transfer // right foot(10) + left foot(10 + 2) + 4
 	
 	uint8_t rxdata[52]; // 52byte transfer + CRC
 	uint8_t received_callback[1]; // 24byte transfer // right foot(10) + left foot(10 + 2) + 4
-	unsigned char rxBuf[14] = {0};
+	unsigned char rxBuf[27] = {0};
 	unsigned char rxBuf_PC[5] = {0};
 
-	unsigned char rxBuf_transmit[14] = {0};
+	unsigned char rxBuf_transmit[27] = {0};
 	unsigned char buff_index = 0;
 	
 	//------ring buffer with DMA
@@ -172,18 +168,16 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_SDIO_SD_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-    HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
-	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 14); //dma mode only in the mcu data
+	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 27); //dma mode only in the mcu data
 
 	HAL_TIM_Base_Start_IT(&htim4);
-	Ringbuf_init();
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -204,11 +198,8 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask_1, StartDefaultTask_1, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask_1), NULL);
-
-  osThreadDef(defaultTask_2, StartDefaultTask_2, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask_2), NULL);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -274,84 +265,36 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief ADC1 Initialization Function
+  * @brief I2C1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_ADC1_Init(void)
+static void MX_I2C1_Init(void)
 {
 
-  /* USER CODE BEGIN ADC1_Init 0 */
+  /* USER CODE BEGIN I2C1_Init 0 */
 
-  /* USER CODE END ADC1_Init 0 */
+  /* USER CODE END I2C1_Init 0 */
 
-  ADC_ChannelConfTypeDef sConfig = {0};
+  /* USER CODE BEGIN I2C1_Init 1 */
 
-  /* USER CODE BEGIN ADC1_Init 1 */
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
 
-  /* USER CODE END ADC1_Init 1 */
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
-  */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
-  hadc1.Init.Resolution = ADC_RESOLUTION_10B;
-  hadc1.Init.ScanConvMode = ENABLE;
-  hadc1.Init.ContinuousConvMode = ENABLE;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 5;
-  hadc1.Init.DMAContinuousRequests = ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_112CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = 2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  sConfig.Rank = 3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_5;
-  sConfig.Rank = 4;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
-  sConfig.Channel = ADC_CHANNEL_7;
-  sConfig.Rank = 5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
-
-  /* USER CODE END ADC1_Init 2 */
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
@@ -541,9 +484,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
-  /* DMA2_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
   /* DMA2_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
@@ -563,14 +503,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PB12 PB13 PB14 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14;
+  /*Configure GPIO pin : PB14 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -582,12 +523,14 @@ static void MX_GPIO_Init(void)
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Prevent unused argument(s) compilation warning */
-	if(huart->Instance == USART1){
-		data_transmit_flag = false;
+if(huart->Instance == USART1){
 
-	
-	}
-	/* NOTE: This function should not be modified, when the callback is needed,
+	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+
+
+
+
+}	/* NOTE: This function should not be modified, when the callback is needed,
            the HAL_UART_TxCpltCallback could be implemented in the user file
    */
 }
@@ -603,13 +546,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if(huart->Instance == USART2){
 		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 		//if(!data_transmit_flag){
-				char buff_maxsize = 14;
+				char buff_maxsize = 27;
 				for(char i = buff_index; i<buff_maxsize; i++){
 				//buff set check
 				//buffer size % control
-				char buff_end = (i+13)%buff_maxsize;
+				char buff_end = (i+26)%buff_maxsize;
 				char buff_index_2 = (i+1)%buff_maxsize;
-				char buff_end_2 = (i+12)%buff_maxsize;
+				char buff_end_2 = (i+25)%buff_maxsize;
 				
 				if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
 				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_13);
@@ -635,40 +578,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void System_commend(){
 	// --> data set up, save for the system 
-	while(IsDataAvailable()){ 
-			  if(Get_after("hello", 5, buffer))
-				{	
-					//clear
-				  if(strcmp(buffer, "setup") == 0)
-				  {	
-					  stop = true;
-					  f_mkdir(buffer);
-//						char filetxt[5] = ".txt";
-//						strcat(testnum,buffer);
-//						strcat(testnum,filetxt);
-						
-					  if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
-						{
-						Uart_sendstring("Fail");
-						osDelay(100);	
-						}
-						else
-						{													
-						Uart_sendstring("Success");
-						f_close(&SDFile);
-						osDelay(100);	
-						}  
-						memset(buffer, 0, 5 * sizeof(char));
-				  }
-			  else if(strcmp(buffer, "start") == 0)
-				  {	
-					stop = false;
-					Uart_sendstring("start");
-					osDelay(100);
-					memset(buffer, 0, 5 * sizeof(char));
-				  }
-			  }
-			}
+	
 }
 /* USER CODE END 4 */
 
@@ -679,7 +589,7 @@ void System_commend(){
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask_1(void const * argument)
+void StartDefaultTask(void const * argument)
 {
     
     
@@ -690,99 +600,40 @@ void StartDefaultTask_1(void const * argument)
   /* USER CODE BEGIN 5 */
 	//1. Mount
 	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-			
-		
-	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
-	osDelay(500);
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
-	}
-	else{
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_15);
-	osDelay(500);
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_15);
-		}
+
   /* Infinite loop */
   for(;;)
   {
 	  //system commend mode
 	  
-	  System_commend();
-
-	 //bypass mode
+	//  System_commend();
 			
 	/* Open or create a log file and ready to append */
     /* Append a line */
-	
-	if(data_transmit_flag){
-	//right foot - left foot
-	txdata[0] = 0xFF;
-	txdata[1] = 0xFF;
-	txdata[2] = ms_sv_tmr >> 8; // high	//65536 size
-	txdata[3] = ms_sv_tmr & 0xFF; // low	
-	for(int i =0; i<5; i++){
-	char a = i*2;
-	txdata[4+a] = adcValArray[i] >> 8;  //hi
-	txdata[5+a] = adcValArray[i] & 0xFF;//lo
-	}
-	//RX data TRANSMITTED : 
-	//BUF -> TX DATA
-	for(int i =0; i<10; i++){
-	txdata[14+i] = rxBuf_transmit[i+2];
-	}
+		//right foot - left foot
+	  if(data_transmit_flag){
 
-    uint16_t checksum = 0;
-	for(int i =2; i<24; i++) {
-	checksum += txdata[i];
-	}
-	txdata[24] = checksum & 0xFF; // low
+		txdata[0] = 0xFF;
+		txdata[1] = 0xFF;
 	
-	txdata[25] = 0xFF;
-	txdata[26] = 0xFE;
+
+		for(int i =0; i<23; i++){
+		txdata[2+i] = 0x00;
+		}
+
 		
-	//SAVE DATA
-	if(datasave_flg){
-	for(int i =0; i<26; i++) {
-	f_printf(&SDFile, "%02x", txdata[i]);	
-	}
-	f_printf(&SDFile, "\n");
-	}
-	//tmr 16bit calculation
-	//tmr  = rxBuf_transmit[3] + (rxBuf_transmit[2] << 8);
-	if(ms_sv_tmr > (uint16_t)3000){
-		dataend_flg = true;
-	}
-		
-	if(dataend_flg){
-	f_close(&SDFile);  
-	dataend_flg = false;
-	HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);	
-	}
+		txdata[25] = 0xFF;
+		txdata[26] = 0xFE;
 	
 	//TRANSMIT DATA TO PC
-	 
+
 	HAL_UART_Transmit(&huart1,txdata,27,5);  // BT1 : transmit, BT2 : receive'
 	data_transmit_flag = false;
-
-	}	  
+	}
   }
   /* USER CODE END 5 */ 
 }
 
-
-void StartDefaultTask_2(void const * argument)
-{
-    
-  /* Infinite loop */
-  for(;;)
-  {
-  /* USER CODE BEGIN 5 */ 
-	//check up the comm data to transmit -- 
-  
-  }
-  
-  /* USER CODE END 5 */ 
-}
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM5 interrupt took place, inside

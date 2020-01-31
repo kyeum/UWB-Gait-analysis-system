@@ -1,6 +1,5 @@
 --cpu=Cortex-M4.fp.sp
 "imu_kw\startup_stm32f411xe.o"
-"imu_kw\uartringbuffer.o"
 "imu_kw\main.o"
 "imu_kw\bsp_driver_sd.o"
 "imu_kw\sd_diskio.o"
@@ -9,8 +8,8 @@
 "imu_kw\stm32f4xx_it.o"
 "imu_kw\stm32f4xx_hal_msp.o"
 "imu_kw\stm32f4xx_hal_timebase_tim.o"
-"imu_kw\stm32f4xx_hal_adc.o"
-"imu_kw\stm32f4xx_hal_adc_ex.o"
+"imu_kw\stm32f4xx_hal_i2c.o"
+"imu_kw\stm32f4xx_hal_i2c_ex.o"
 "imu_kw\stm32f4xx_ll_sdmmc.o"
 "imu_kw\stm32f4xx_hal_sd.o"
 "imu_kw\stm32f4xx_hal_tim.o"
