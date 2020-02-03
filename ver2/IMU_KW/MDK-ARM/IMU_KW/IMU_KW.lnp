@@ -8,6 +8,7 @@
 "imu_kw\stm32f4xx_it.o"
 "imu_kw\stm32f4xx_hal_msp.o"
 "imu_kw\stm32f4xx_hal_timebase_tim.o"
+"imu_kw\stm32f4xx_hal_crc.o"
 "imu_kw\stm32f4xx_hal_i2c.o"
 "imu_kw\stm32f4xx_hal_i2c_ex.o"
 "imu_kw\stm32f4xx_ll_sdmmc.o"

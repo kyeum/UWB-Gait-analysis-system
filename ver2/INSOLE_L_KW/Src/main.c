@@ -25,7 +25,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -81,6 +83,12 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+//Communication buffers
+	uint8_t txdata[64]; // 28byte transfer // right foot(10) + left foot(10 + 2) + 4
+	uint8_t rxBuf[51] = {0};
+	uint8_t buff_index = 0;
+	uint8_t rxBuf_transmit[46] = {0};
+	uint16_t adcValArray[5] = {0,};
 
 /* USER CODE END 0 */
 
@@ -121,7 +129,9 @@ int main(void)
   MX_TIM4_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 51); //dma mode only in the mcu data
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
+  HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -514,7 +524,37 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  /* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_RxCpltCallback could be implemented in the user file
+   */
+	//add ring buffer
+	// data pacing and save buff to transmit array
+	if(huart->Instance == USART2){
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
+				for(char i = buff_index; i<buff_maxsize; i++){
+				//buff set check
+				//buffer size % control
+				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
+				char buff_index_2 = (i+1)%buff_maxsize;
+				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
+				
+				if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_13);
+					//Data save		
+						for(int j =0; j<buff_maxsize; j++)
+						{
+						int k = (i+j)%buff_maxsize;
+						rxBuf_transmit[j] = rxBuf[k];
+						}	
+					break;						
+					}
+				}
+	}
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -535,8 +575,24 @@ void StartDefaultTask(void const * argument)
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
   for(;;)
-  {
-    osDelay(1);
+  {  
+		txdata[0] = 0xFF;
+		txdata[1] = 0xFF;
+	
+		for(int i =0; i<5; i++){
+		char a = i*2;
+		txdata[2+a] = adcValArray[i] >> 8;  //hi
+		txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		}
+		memcpy(&txdata[12], &rxBuf_transmit[0], 46);
+		//txdata[61] == crc data send
+		txdata[62] = 0xFF;
+		txdata[63] = 0xFE;
+	
+	//TRANSMIT DATA TO PC
+
+		HAL_UART_Transmit(&huart1,txdata,64,10);  // 4byte + 36 + 20 byte(insole left, right) + timer byte 2 + CRC 2 : 64 byte
+	
   }
   /* USER CODE END 5 */ 
 }

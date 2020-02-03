@@ -22,6 +22,7 @@ imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_g
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_crc.h
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
 imu_kw\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h

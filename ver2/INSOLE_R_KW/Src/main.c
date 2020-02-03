@@ -25,7 +25,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +48,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
+
+CRC_HandleTypeDef hcrc;
 
 SD_HandleTypeDef hsd;
 DMA_HandleTypeDef hdma_sdio_rx;
@@ -70,6 +74,7 @@ static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_CRC_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART6_UART_Init(void);
@@ -81,6 +86,15 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+	//Communication buffers
+	uint8_t txdata[34]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
+	uint8_t rxBuf[24] = {0};
+	uint8_t buff_index = 0;
+	uint8_t rxBuf_transmit[24] = {0};
+	uint16_t adcValArray[5] = {0,};
+	//crcval
+	uint32_t crcArray[9] = {0,};
+	uint32_t crcval = 0;
 
 /* USER CODE END 0 */
 
@@ -117,11 +131,15 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
+  MX_CRC_Init();
   MX_SDIO_SD_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 24); //dma mode only in the mcu data
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
+  HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -287,6 +305,32 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
 
 }
 
@@ -515,6 +559,50 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  /* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_RxCpltCallback could be implemented in the user file
+   */
+	//add ring buffer
+	// data pacing and save buff to transmit array
+	if(huart->Instance == USART2){
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
+				
+				for(char i = buff_index; i<buff_maxsize; i++){
+				//buff set check
+				//buffer size % control
+				
+				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
+				char buff_index_2 = (i+1)%buff_maxsize;
+				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
+				if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
+					buff_index = i;
+					for(int j =0; j<5; j++){
+						char c = j*4;
+						for(int k=0; k<4; k++){
+							char reap = (2 + i + c + k)%buff_maxsize;
+							crcArray[j] |= (uint32_t)rxBuf[reap] << (2*k);
+						}
+					   }
+					char crc_begin = (i+buff_maxsize-3)%buff_maxsize; //LLSB
+					char crc_end = (i+buff_maxsize-4)%buff_maxsize;   //MLSB
+				
+					if(((int16_t)HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff) != (int16_t)(((int16_t)rxBuf[crc_end] << 8) | rxBuf[crc_begin])) break;
+					
+						for(int j =0; j<buff_maxsize; j++)
+						{
+						int k = (i+j)%buff_maxsize;
+						rxBuf_transmit[j] = rxBuf[k];
+						}	
+					break;						
+				}
+				if(buff_index == buff_maxsize-1) buff_index = 0;
+			}
+	}
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -536,8 +624,24 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
-  }
+		txdata[0] = 0xFF;
+		txdata[1] = 0xFF;
+		for(int i =0; i<5; i++){
+		char a = i*2;
+		txdata[2+a] = adcValArray[i] >> 8;  //hi
+		txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		}
+		//add txdata to transmit for the uart
+		memcpy(&txdata[12], &rxBuf_transmit[0], 18);
+	//	txdata[30] = 0xFF;
+	//	txdata[31] = 0xFE;  // crc data
+		txdata[32] = 0xFF;
+		txdata[33] = 0xFE;
+	
+	//TRANSMIT DATA TO LEFT LEG	
+
+		//HAL_UART_Transmit(&huart1,txdata,51,10);  // 4byte + 36 + 20 byte(insole left, right) + timer byte 2 + CRC 2 : 64 byte
+	  }
   /* USER CODE END 5 */ 
 }
 

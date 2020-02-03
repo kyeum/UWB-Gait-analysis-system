@@ -23,6 +23,7 @@ imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_crc.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
 imu_kw\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h
@@ -59,5 +60,5 @@ imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 imu_kw\main.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 imu_kw\main.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 imu_kw\main.o: ../Inc/sd_diskio.h
-imu_kw\main.o: ../Inc/MPU9250.h
-imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h

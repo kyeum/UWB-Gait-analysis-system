@@ -21,79 +21,17 @@ Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V3.0.7.0
 Dialog DLL:      TCM.DLL V1.36.5.0
  
 <h2>Project:</h2>
-C:\Users\CHKimLab\Desktop\workspace\HelloSTM32\ver2\IMU_KW\MDK-ARM\IMU_KW.uvprojx
-Project File Date:  01/31/2020
+C:\Users\CHKimLab\Desktop\workspace\HelloSTM32\HelloSTM32\ver2\IMU_KW\MDK-ARM\IMU_KW.uvprojx
+Project File Date:  02/03/2020
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'IMU_KW'
 compiling main.c...
-../Inc/MPU9250.h(192): error:  #20: identifier "I2C" is undefined
-  I2C i2c(I2C_SDA, I2C_SCL);
-../Inc/MPU9250.h(192): error:  #92: identifier-list parameters may only be used in a function definition
-  I2C i2c(I2C_SDA, I2C_SCL);
-../Inc/MPU9250.h(194): error:  #20: identifier "DigitalOut" is undefined
-  DigitalOut myled(LED1);
-../Inc/MPU9250.h(194): error:  #92: identifier-list parameters may only be used in a function definition
-  DigitalOut myled(LED1);
-../Inc/MPU9250.h(214): error:  #28: expression must have a constant value
-  float GyroMeasError = PI * (60.0f / 180.0f);     // gyroscope measurement error in rads/s (start at 60 deg/s), then reduce after ~10 s to 3
-../Inc/MPU9250.h(215): error:  #59: function call is not allowed in a constant expression
-  float beta = sqrt(3.0f / 4.0f) * GyroMeasError;  // compute beta
-../Inc/MPU9250.h(215): error:  #28: expression must have a constant value
-  float beta = sqrt(3.0f / 4.0f) * GyroMeasError;  // compute beta
-../Inc/MPU9250.h(216): error:  #28: expression must have a constant value
-  float GyroMeasDrift = PI * (1.0f / 180.0f);      // gyroscope measurement drift in rad/s/s (start at 0.0 deg/s/s)
-../Inc/MPU9250.h(217): error:  #59: function call is not allowed in a constant expression
-  float zeta = sqrt(3.0f / 4.0f) * GyroMeasDrift;  // compute zeta, the other free parameter in the Madgwick scheme usually set to a small or zero value
-../Inc/MPU9250.h(217): error:  #28: expression must have a constant value
-  float zeta = sqrt(3.0f / 4.0f) * GyroMeasDrift;  // compute zeta, the other free parameter in the Madgwick scheme usually set to a small or zero value
-../Inc/MPU9250.h(227): error:  #20: identifier "class" is undefined
-  class MPU9250 {
-../Inc/MPU9250.h(227): error:  #65: expected a ";"
-  class MPU9250 {
-../Inc/MPU9250.h(248): warning:  #12-D: parsing restarts here after previous syntax error
-      data_write[0] = subAddress;
-../Inc/MPU9250.h(249): error:  #77-D: this declaration has no storage class or type specifier
-      i2c.write(address, data_write, 1, 1); // no stop
-../Inc/MPU9250.h(249): error:  #147: declaration is incompatible with "<error-type> i2c()"  (declared at line 192)
-      i2c.write(address, data_write, 1, 1); // no stop
-../Inc/MPU9250.h(249): error:  #65: expected a ";"
-      i2c.write(address, data_write, 1, 1); // no stop
-../Inc/MPU9250.h(250): error:  #77-D: this declaration has no storage class or type specifier
-      i2c.read(address, data, 1, 0); 
-../Inc/MPU9250.h(250): error:  #65: expected a ";"
-      i2c.read(address, data, 1, 0); 
-../Inc/MPU9250.h(251): error:  #169: expected a declaration
-      return data[0]; 
-../Inc/MPU9250.h(252): error:  #169: expected a declaration
-  }
-../Inc/MPU9250.h(417): warning:  #12-D: parsing restarts here after previous syntax error
-    c = c & ~0x02; // Clear Fchoice bits [1:0] 
-../Inc/MPU9250.h(418): error:  #77-D: this declaration has no storage class or type specifier
-    c = c & ~0x18; // Clear AFS bits [4:3]
-../Inc/MPU9250.h(418): error:  #28: expression must have a constant value
-    c = c & ~0x18; // Clear AFS bits [4:3]
-../Inc/MPU9250.h(419): error:  #77-D: this declaration has no storage class or type specifier
-    c = c | Gscale << 3; // Set full scale range for the gyro
-../Inc/MPU9250.h(419): error:  #148: variable "c"  has already been initialized
-    c = c | Gscale << 3; // Set full scale range for the gyro
-../Inc/MPU9250.h(419): error:  #28: expression must have a constant value
-    c = c | Gscale << 3; // Set full scale range for the gyro
-../Inc/MPU9250.h(419): error:  #28: expression must have a constant value
-    c = c | Gscale << 3; // Set full scale range for the gyro
-../Inc/MPU9250.h(421): error:  #79: expected a type specifier
-    writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
-../Inc/MPU9250.h(421): error:  #79: expected a type specifier
-    writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
-../Inc/MPU9250.h(421): error:  #757: variable "c"  is not a type name
-    writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
-../Inc/MPU9250.h(421): error:  #260-D: explicit type is missing ("int" assumed)
-    writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
-../Inc/MPU9250.h(424): error:  #77-D: this declaration has no storage class or type specifier
-    c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG); // get current ACCEL_CONFIG register value
-../Src/main.c: 2 warnings, 30 errors
-"IMU_KW\IMU_KW.axf" - 30 Error(s), 2 Warning(s).
+linking...
+Program Size: Code=21248 RO-data=548 RW-data=168 ZI-data=18648  
+FromELF: creating hex file...
+"IMU_KW\IMU_KW.axf" - 0 Error(s), 0 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -116,8 +54,7 @@ Package Vendor: Keil
 <h2>Collection of Component Files used:</h2>
 
    * Component: ARM::CMSIS:CORE:5.3.0
-Target not created.
-Build Time Elapsed:  00:00:01
+Build Time Elapsed:  00:00:02
 </pre>
 </body>
 </html>
