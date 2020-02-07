@@ -22,16 +22,16 @@ Dialog DLL:      TCM.DLL V1.36.5.0
  
 <h2>Project:</h2>
 C:\Users\CHKimLab\Desktop\workspace\HelloSTM32\HelloSTM32\ver2\IMU_KW\MDK-ARM\IMU_KW.uvprojx
-Project File Date:  02/03/2020
+Project File Date:  02/07/2020
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'IMU_KW'
 compiling main.c...
-linking...
-Program Size: Code=21248 RO-data=548 RW-data=168 ZI-data=18648  
-FromELF: creating hex file...
-"IMU_KW\IMU_KW.axf" - 0 Error(s), 0 Warning(s).
+../Src/main.c(31): error:  #5: cannot open source input file "FreeRTOS/source/stream_buffer.h": No such file or directory
+  #include "FreeRTOS/source/stream_buffer.h"
+../Src/main.c: 0 warnings, 1 error
+"IMU_KW\IMU_KW.axf" - 1 Error(s), 0 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -54,7 +54,8 @@ Package Vendor: Keil
 <h2>Collection of Component Files used:</h2>
 
    * Component: ARM::CMSIS:CORE:5.3.0
-Build Time Elapsed:  00:00:02
+Target not created.
+Build Time Elapsed:  00:00:01
 </pre>
 </body>
 </html>

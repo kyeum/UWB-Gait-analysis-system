@@ -89,13 +89,59 @@ void StartDefaultTask(void const * argument);
 	//Communication buffers
 	uint8_t txdata[34]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
 	uint8_t rxBuf[24] = {0};
+	uint8_t rxBuf_[24] = {0};
+	uint8_t rxBuf_crc[24] = {0};
+	uint8_t cp_rxBuf_[24] = {0,};	\
+
+	bool useBuff = false;
+	bool useBuff_mx = false;
+
 	uint8_t buff_index = 0;
 	uint8_t rxBuf_transmit[24] = {0};
 	uint16_t adcValArray[5] = {0,};
 	//crcval
-	uint32_t crcArray[9] = {0,};
-	uint32_t crcval = 0;
+	uint32_t crcArray[8] = {0,};
+	uint32_t crcArray_send[9] = {0,};
 
+	uint16_t crcval = 0;
+
+	//test
+	uint16_t cal_val = 0;
+	uint16_t receive_val =0;
+	
+	//buff calcualtion
+	//uint8_t rxBuf_crc[24] = {0};
+	bool crc_test = true;
+	bool crc_test2 = false;
+
+	bool rxBuf_trans = true;
+	
+	//SD card variables 
+	extern char SDPath[4];   /* SD logical drive path */
+	extern FATFS SDFatFS;    /* File system object for SD logical drive */
+	extern FIL SDFile;       /* File object for SD */
+
+	//FILE I/O operation
+
+	FRESULT res;                                          /* FatFs function common result code */
+	uint32_t byteswritten, bytesread;                     /* File write/read counts */
+	uint8_t wtext[] = "Hello from kyeum!"; 			      /* File write start buffer */
+	uint8_t rtext[100];                                   /* File read buffer */
+	
+	FATFS myFATAS;
+	FIL myFILE;
+	UINT testByte; 										  // error detection 
+	bool datasave_flg = true;
+	
+	//Timer
+	bool _10ms_flg = false;
+	uint16_t ms_tmr = 0;
+	uint16_t _100ms_tmr = 0;
+	uint16_t ms_sv_tmr = 0;
+	
+	//wdg cnt
+	uint8_t wdg_cnt = 0;
+	
 /* USER CODE END 0 */
 
 /**
@@ -137,7 +183,7 @@ int main(void)
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 24); //dma mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 24); //dma mode only in the mcu data
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -204,9 +250,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 64;
+  RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
+  RCC_OscInitStruct.PLL.PLLQ = 5;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -215,12 +261,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -246,7 +292,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_10B;
   hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
@@ -381,9 +427,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1600-2;
+  htim4.Init.Prescaler = 1000-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 10-1;
+  htim4.Init.Period = 100-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -568,40 +614,51 @@ static void MX_GPIO_Init(void)
 	//add ring buffer
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+				memmove(&rxBuf[0], &rxBuf_crc[0],sizeof(uint8_t)*24);	
+				 // disconnect -> 
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
-				
-				for(char i = buff_index; i<buff_maxsize; i++){
-				//buff set check
-				//buffer size % control
+				bool data_received = false;
+				for(char i = buff_index; i<buff_maxsize; i++){				
 				
 				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
 				char buff_index_2 = (i+1)%buff_maxsize;
 				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
-				if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
-					buff_index = i;
-					for(int j =0; j<5; j++){
-						char c = j*4;
-						for(int k=0; k<4; k++){
-							char reap = (2 + i + c + k)%buff_maxsize;
-							crcArray[j] |= (uint32_t)rxBuf[reap] << (2*k);
-						}
-					   }
-					char crc_begin = (i+buff_maxsize-3)%buff_maxsize; //LLSB
-					char crc_end = (i+buff_maxsize-4)%buff_maxsize;   //MLSB
-				
-					if(((int16_t)HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff) != (int16_t)(((int16_t)rxBuf[crc_end] << 8) | rxBuf[crc_begin])) break;
 					
-						for(int j =0; j<buff_maxsize; j++)
-						{
-						int k = (i+j)%buff_maxsize;
-						rxBuf_transmit[j] = rxBuf[k];
-						}	
-					break;						
-				}
-				if(buff_index == buff_maxsize-1) buff_index = 0;
+					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
+					buff_index = i; // head
+					//rxBuf  transmit	
+					useBuff = true;
+					memset(rxBuf_,0,24*sizeof(rxBuf_[0]));	
+					for(int k = 0; k<buff_maxsize; k++){
+					char c = (i + k)%buff_maxsize;	
+					rxBuf_[k] = rxBuf[c];
+					}
+					useBuff = false;
+					data_received = true;	
+					break;
+					}
 			}
+			if(!data_received) buff_index = 0;
+					memset(rxBuf_crc,0, 24*sizeof(rxBuf_crc[0]));			
 	}
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+	if(huart->Instance == USART2){  
+		
+	//HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
+
+	}
+	/* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_TxCpltCallback could be implemented in the user file
+	*/
+}
+
+void wdg_activate(){
+	HAL_NVIC_SystemReset();
 }
 /* USER CODE END 4 */
 
@@ -621,27 +678,103 @@ void StartDefaultTask(void const * argument)
   MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
+	
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+	
+	char testname[20];
+	char filetxt[5] = ".txt"; // directory
+	f_mkdir(testname);
+	//strcat(testnum,filetxt);
+	
+	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+	}
+	else{
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		}
+	
   /* Infinite loop */
   for(;;)
   {
+	  if(wdg_cnt > 30) wdg_activate();
+	  
+		memset(txdata,0,34 * sizeof(txdata[0])); // txbuffer clear
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
-		for(int i =0; i<5; i++){
+		for(int i =0; i<5; i++){ // right / left -- insole + Imu dataset :
 		char a = i*2;
 		txdata[2+a] = adcValArray[i] >> 8;  //hi
 		txdata[3+a] = adcValArray[i] & 0xFF;//lo
 		}
-		//add txdata to transmit for the uart
-		memcpy(&txdata[12], &rxBuf_transmit[0], 18);
-	//	txdata[30] = 0xFF;
-	//	txdata[31] = 0xFE;  // crc data
+
+		
+		if(!useBuff){ // if not rxdata received, just send to other pcb
+		memmove(&cp_rxBuf_[0], &rxBuf_[0], sizeof(uint8_t)*24); 
+		}
+		else
+		{
+			continue;
+		}
+
+		memset(crcArray,0,8*sizeof(crcArray[0]));
+		memmove(&crcArray[0], &cp_rxBuf_[2], sizeof(uint8_t)*18); 
+		char crc_begin = 20; //MLSB
+		char crc_end = 21;   //LLSB	
+	    receive_val = (int16_t)(((int16_t)cp_rxBuf_[crc_begin] << 8) | cp_rxBuf_[crc_end]);
+		cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
+	    if(cal_val == receive_val)
+		{
+			memmove(&txdata[12], &cp_rxBuf_[2], sizeof(uint8_t)*18); 
+			//memcpy(&txdata[12], &cp_rxBuf_[2], 18);	 //received data	
+		}			
+		else
+		{
+//			if(datasave_flg){
+//			for(int i =0; i<24; i++) {
+//			f_printf(&SDFile, "%02x", cp_rxBuf_[i]);
+//			}
+//			f_printf(&SDFile, "\n");
+//			for(int i =0; i<24; i++) {
+//			f_printf(&SDFile, "%02x", rxBuf_[i]);
+//			}
+//			f_printf(&SDFile, "\n");
+//			
+//			for(int i =0; i<24; i++) {
+//			f_printf(&SDFile, "%02x", rxBuf[i]);
+//			}
+//			f_printf(&SDFile, "\n");
+//			}
+//			else
+//			{
+//			f_close(&SDFile);
+//			}
+			wdg_cnt ++;
+			continue;
+		}
+		// data crc
+		txdata[30] = 0; 
+		txdata[31] = 0;
+		// Imu_databuff -> 32uart data set
+		 memset(crcArray_send,0,8*sizeof(crcArray_send[0]));
+		 memcpy(&crcArray_send[0], &txdata[2] , 28); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,7)& 0xffff;
+	
+		txdata[30] = crcval >> 8; 
+		txdata[31] = crcval & 0xff;
 		txdata[32] = 0xFF;
 		txdata[33] = 0xFE;
-	
-	//TRANSMIT DATA TO LEFT LEG	
+//	DATA SAVE TO LEFT LEG	
 
-		//HAL_UART_Transmit(&huart1,txdata,51,10);  // 4byte + 36 + 20 byte(insole left, right) + timer byte 2 + CRC 2 : 64 byte
-	  }
+		   if(_10ms_flg){
+			   _10ms_flg = false;
+			}
+//	TRANSMIT DATA TO LEFT LEG	
+		HAL_UART_Transmit_IT(&huart1,txdata,34); // 4byte + 18 + 10 byte(insole right)+ CRC 2 : 34 byte				
+	}
   /* USER CODE END 5 */ 
 }
 
@@ -662,7 +795,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+ 	if(htim ->Instance  == TIM4){
+		ms_tmr ++;
+		_100ms_tmr++;
+		ms_sv_tmr++;
 
+		if(ms_tmr % 10 == 0){
+			//_100ms_flg = true;
+			_10ms_flg = true;
+			ms_tmr = 0;
+		}
+		if(_100ms_tmr % 100 == 0){
+			_100ms_tmr = 0;
+			if(!datasave_flg) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
+		}
+		
+		if(ms_sv_tmr % 20000 == 0){ // 10sec later - date
+			datasave_flg = false;
+			ms_sv_tmr = 0;
+		}
+	
+	// save data 10sec	
+	}
   /* USER CODE END Callback 1 */
 }
 

@@ -49,6 +49,8 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
+CRC_HandleTypeDef hcrc;
+
 SD_HandleTypeDef hsd;
 DMA_HandleTypeDef hdma_sdio_rx;
 DMA_HandleTypeDef hdma_sdio_tx;
@@ -75,6 +77,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_CRC_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -84,11 +87,26 @@ void StartDefaultTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 //Communication buffers
-	uint8_t txdata[64]; // 28byte transfer // right foot(10) + left foot(10 + 2) + 4
-	uint8_t rxBuf[51] = {0};
+	uint8_t txdata[46]; //4 from FFFF,FFFE 18 from Imu, 20 byte from insole  2byte crc 2byte tmr : 46 byte 
+	uint8_t rxBuf[34] = {0};
 	uint8_t buff_index = 0;
-	uint8_t rxBuf_transmit[46] = {0};
+	uint8_t rxBuf_transmit[28] = {0};
 	uint16_t adcValArray[5] = {0,};
+	
+	//crcval
+	uint32_t crcArray[8] = {0,};
+	uint32_t crcArray_send[10] = {0,};
+	
+	uint16_t crcval = 0;
+
+	//test
+	uint16_t cal_val = 0;
+	uint16_t receive_val =0;
+	
+	//buff calcualtion
+	uint8_t rxBuf_crc[34] = {0};
+	bool crc_test = true;
+	bool rxBuf_trans = true;
 
 /* USER CODE END 0 */
 
@@ -128,8 +146,9 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf, 51); //dma mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 34); //dma mode only in the mcu data
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -196,9 +215,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 64;
+  RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
+  RCC_OscInitStruct.PLL.PLLQ = 5;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -207,12 +226,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -238,7 +257,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_10B;
   hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
@@ -301,6 +320,32 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
+}
+
+/**
   * @brief SDIO Initialization Function
   * @param None
   * @retval None
@@ -347,7 +392,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1600-2;
+  htim4.Init.Prescaler = 10000-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 10-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -533,26 +578,59 @@ static void MX_GPIO_Init(void)
 	//add ring buffer
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+				//buff copy
+				if(crc_test){
+					crc_test = false;
+					
+					memcpy(&rxBuf[0], &rxBuf_crc[0], 34);
+
 				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
+				
 				for(char i = buff_index; i<buff_maxsize; i++){
 				//buff set check
-				//buffer size % control
+				//buffer size % control						
+				
 				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
 				char buff_index_2 = (i+1)%buff_maxsize;
 				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
+				char crc_begin = (i+buff_maxsize-4)%buff_maxsize; //MLSB
+				char crc_end = (i+buff_maxsize-3)%buff_maxsize;   //LLSB	
+					
+					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
+					buff_index = i;
+					memset(crcArray,0,8*sizeof(crcArray[0]));
+
+					for(int j =0; j<7; j++){ // 7 calculate
+						for(int k=0; k<4; k++){
+						char c = (j*4 + i + 2 + k)%buff_maxsize;
+						if(c == crc_begin) continue;
+						if(c == crc_end) continue;
+						crcArray[j] |= (uint32_t)rxBuf[c] << 8*k;
+					   }
+				   }
 				
-				if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_13);
-					//Data save		
+				   cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,7)&0xffff);
+				   receive_val = (int16_t)(((int16_t)rxBuf[crc_begin] << 8) | rxBuf[crc_end]);
+				   
+					if(cal_val != receive_val) { crc_test = true; break;}
+					
+					//rxBuf_trans = false;
 						for(int j =0; j<buff_maxsize; j++)
 						{
-						int k = (i+j)%buff_maxsize;
+						int k = (i+j+2)%buff_maxsize;
 						rxBuf_transmit[j] = rxBuf[k];
 						}	
+					//rxBuf_trans = true;
+						//rx transmit -> data access -> fail to end
+
+					crc_test = true; 
 					break;						
-					}
 				}
+				if(buff_index == buff_maxsize-1) buff_index = 0;
+			}				
+				crc_test = true;	
+		}
 	}
 }
 /* USER CODE END 4 */
@@ -584,14 +662,29 @@ void StartDefaultTask(void const * argument)
 		txdata[2+a] = adcValArray[i] >> 8;  //hi
 		txdata[3+a] = adcValArray[i] & 0xFF;//lo
 		}
-		memcpy(&txdata[12], &rxBuf_transmit[0], 46);
-		//txdata[61] == crc data send
-		txdata[62] = 0xFF;
-		txdata[63] = 0xFE;
+		//tmr data
+		txdata[40] = 0; 
+		txdata[41] = 0;
+
+		memcpy(&txdata[12], &rxBuf_transmit[0], 28);
+		
+		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
+		for(int i =0; i<11; i++){
+		char c = i*4 + 2;
+		memcpy(&crcArray_send[i],&txdata[c] , 4); 
+		  }
+		  
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,10)& 0xffff;
+		 
+		txdata[42] = crcval >> 8; 
+		txdata[43] = crcval & 0xff;
+		
+		txdata[44] = 0xFF;
+		txdata[45] = 0xFE;
 	
 	//TRANSMIT DATA TO PC
 
-		HAL_UART_Transmit(&huart1,txdata,64,10);  // 4byte + 36 + 20 byte(insole left, right) + timer byte 2 + CRC 2 : 64 byte
+		HAL_UART_Transmit(&huart1,txdata,46,10);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
 	
   }
   /* USER CODE END 5 */ 

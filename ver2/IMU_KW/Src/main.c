@@ -27,6 +27,9 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include "FreeRTOS.h"
+#include "stream_buffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -123,8 +126,41 @@ void StartDefaultTask(void const * argument);
 		
 	//crc
 	uint32_t crcArray[8] = {0,};
-	uint32_t crcval = 0;
+	uint32_t crcArrayt[8] = {0,};
 
+	uint16_t crcval = 0;
+	uint32_t crcval2 = 0; 
+	//test
+	uint32_t crc_test =0;
+	
+	//SD card variables 
+	extern char SDPath[4];   /* SD logical drive path */
+	extern FATFS SDFatFS;    /* File system object for SD logical drive */
+	extern FIL SDFile;       /* File object for SD */
+
+	//FILE I/O operation
+
+	FRESULT res;                                          /* FatFs function common result code */
+	uint32_t byteswritten, bytesread;                     /* File write/read counts */
+	uint8_t wtext[] = "Hello from kyeum!"; 			      /* File write start buffer */
+	uint8_t rtext[100];                                   /* File read buffer */
+	
+	FATFS myFATAS;
+	FIL myFILE;
+	UINT testByte; 										  // error detection 
+	bool datasave_flg = true;
+	bool datatransmit_flg = true;
+
+	//Timer
+	uint16_t ms_tmr = 0;
+	uint16_t _10ms_tmr = 0;
+	uint16_t ms_sv_tmr = 0;
+	bool _100ms_flg = false;
+	bool _10ms_flg = false;
+	
+
+	
+	
 /* USER CODE END 0 */
 
 /**
@@ -165,6 +201,8 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_TIM_Base_Start_IT(&htim4);
+  
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -229,9 +267,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 64;
+  RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
+  RCC_OscInitStruct.PLL.PLLQ = 5;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -240,12 +278,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -358,9 +396,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1600-1;
+  htim4.Init.Prescaler = 1000-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 10-1;
+  htim4.Init.Period = 100-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -562,7 +600,7 @@ void initMPU9250()
  // Initialize MPU9250 device
  // wake up device
   //writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00); // Clear sleep mode bit (6), enable all sensors 
-  osDelay(100);
+	osDelay(100);
  // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
  // get stable time source
@@ -612,7 +650,18 @@ void initMPU9250()
   // writeByte(MPU9250_ADDRESS, INT_ENABLE, 0x01);  // Enable data ready (bit 0) interrupt
 }
 
-
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+	if(huart->Instance == USART2){  
+		
+	//HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
+	datatransmit_flg = true;
+	}
+	/* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_TxCpltCallback could be implemented in the user file
+	*/
+}
 
 /* USER CODE END 4 */
 
@@ -624,14 +673,44 @@ void initMPU9250()
   */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
-{
-    
-    
-                 
+{                
   /* init code for FATFS */
   MX_FATFS_Init();
 
+  /* init code for usart2 DMA parser */
+//static uint8_t msg_list[PARSER_MESSAGE_LIST_SIZE][PARSER_MESSAGE_SIZE];
+	
+	//free rtos -> 1ms data 
+
+	//StreamBuffer_t xStreamBuffer;
+
+	
+	
+	
+	
+	
   /* USER CODE BEGIN 5 */
+	
+	
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+	
+	char testname[20];
+	char filetxt[5] = ".txt"; // directory
+	f_mkdir(testname);
+	//strcat(testnum,filetxt);
+	
+	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+	}
+	else{
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		}
+	
+		
   /*<------------------ find ID for the I2C devices	
   	for(uint8_t i=0; i<255; i++)
 	{
@@ -644,17 +723,21 @@ void StartDefaultTask(void const * argument)
  // /*< -- initialize mpu9250 && AK8963
 	
 	initMPU9250();
-	
+	//initAK8963(&mag_x);
+
 //--------------*/	
 
   /* Infinite loop */
   for(;;)
   {
+	  
+	  txdata[0] = 0xff;
+	HAL_UART_Transmit_IT(&huart1,txdata,24);
+  
 	i2cBuf[0] = ACCEL_XOUT_H;  //Register address: X_axis H in accel 
 	HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, i2cBuf, 1, 1); // data write for the reading specific address
 	i2cBuf[1] = 0x00;
 	HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, &i2cBuf[1], 6, 10); // Data receive sequencing from i2cBuf[1]
-	
 		acc_x = -(i2cBuf[1]<<8 | i2cBuf[2]);
 		acc_y = -(i2cBuf[3]<<8 | i2cBuf[4]);
 		acc_z =  (i2cBuf[5]<<8 | i2cBuf[6]);
@@ -691,21 +774,42 @@ void StartDefaultTask(void const * argument)
    // data transmit to other boards!
    txdata[0] = 0xFF;txdata[1] = 0xFF;
    memcpy(&txdata[2], &Imu_dataBuf[0], 18);
-   
+      
+   //crc reset
+  
    // Imu_databuff -> 32uart data set
-   for(int i =0; i<5; i++){
-	char c = i*4;
-	memcpy(&crcArray[i], &txdata[2 + c] , 4); 
-   }
-	  
-   // CRC LSB to send tx data
-   txdata[20] = HAL_CRC_Calculate(&hcrc,crcArray,5)& 0x00ff; 
-   txdata[21] = HAL_CRC_Calculate(&hcrc,crcArray,5)& 0xff00;
+   txdata[20] = 0; 
+   txdata[21] = 0;
+    memset(crcArray,0,8*sizeof(crcArray[0]));
+   	memcpy(&crcArray[0],&txdata[2] , 18); 
+   
+   crcval = HAL_CRC_Calculate(&hcrc,crcArray,5)& 0xffff;
+   txdata[20] = crcval >> 8; 
+   txdata[21] = crcval & 0xff;
    
    txdata[22] = 0xFF;txdata[23] = 0xFE;
 
-   HAL_UART_Transmit(&huart2,txdata,24,3); // data transmit
-   
+ 
+//   	if(datasave_flg){
+//	for(int i =0; i<24; i++) {
+//	f_printf(&SDFile, "%02x", txdata[i]);	
+//	}
+//	f_printf(&SDFile, "\n");	
+
+//	}
+//	else
+//	{
+//		f_close(&SDFile);
+//	}
+//	
+	if(_10ms_flg){
+		_10ms_flg = false;
+	if(datatransmit_flg){
+	HAL_UART_Transmit_IT(&huart2,txdata,24);
+	datatransmit_flg = false;
+	}
+}
+	//osDelay(1);
   }
   /* USER CODE END 5 */ 
 }
@@ -727,7 +831,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+  	if(htim ->Instance  == TIM4){
+		ms_tmr ++;
+		_10ms_tmr++;
+		ms_sv_tmr ++;
+		if(ms_tmr % 10 == 0){
+			//_100ms_flg = true;
+			_10ms_flg = true;
+			ms_sv_tmr++;
+			ms_tmr = 0;
+		}
+		if(_10ms_tmr % 100 == 0){
+			_10ms_tmr = 0;
+			_100ms_flg = true;
+			if(!datasave_flg) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
+		}
+		
+		if(ms_sv_tmr % 10000 == 0){ // 10sec later - date
+			datasave_flg = false;
+			
+			ms_sv_tmr = 0;
+		}
+		
+		
+	// save data 10sec	
+	}
   /* USER CODE END Callback 1 */
 }
 
