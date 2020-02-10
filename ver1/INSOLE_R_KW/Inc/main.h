@@ -18,7 +18,8 @@
   ******************************************************************************
   */
 /*  DMA Configuration **************************************************************/
-#define DMA_BUF_SIZE        24      /* DMA circular buffer size in bytes */
+
+#define DMA_BUF_SIZE        16      /* DMA circular buffer size in bytes */
 #define DMA_TIMEOUT_MS      10      /* DMA Timeout duration in msec */
 /******************************************************************************/
 /* USER CODE END Header */

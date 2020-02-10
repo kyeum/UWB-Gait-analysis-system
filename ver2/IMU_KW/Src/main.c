@@ -1,4 +1,10 @@
 /* USER CODE BEGIN Header */
+/*Definition in INSOLE_R_KR
+DATASET :
+INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 16BYTE
+INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 26BYTE
+IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
+*/
 /**
   ******************************************************************************
   * @file           : main.c
@@ -28,8 +34,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include "FreeRTOS.h"
-#include "stream_buffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,6 +43,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//define : MPU9250
 	#define MPU9250_ADDRESS	0xD2
 	#define AK8963_ADDRESS   0x0C<<1
 	#define AK8963_ST1       0x02  // data ready status bit 0	
@@ -116,22 +121,22 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+	// I2C and IMU
 	int16_t acc_x,acc_y,acc_z;
 	int16_t gy_x,gy_y,gy_z;
 	int16_t mag_x,mag_y,mag_z;
 	
-	uint8_t txdata[24]; // FFFF ----  2 x 9 = 18 bytes ---- FFFE(4) + CRC(2) == 24 bytes
+	// Communication
+	bool receiveflag = false;
+	uint8_t txdata[44];
+	uint8_t RxBuf[26];
+	
 	uint8_t i2cBuf[7];
 	uint8_t Imu_dataBuf[18] = {0,};
 		
 	//crc
 	uint32_t crcArray[8] = {0,};
-	uint32_t crcArrayt[8] = {0,};
-
 	uint16_t crcval = 0;
-	uint32_t crcval2 = 0; 
-	//test
-	uint32_t crc_test =0;
 	
 	//SD card variables 
 	extern char SDPath[4];   /* SD logical drive path */
@@ -148,8 +153,10 @@ void StartDefaultTask(void const * argument);
 	FATFS myFATAS;
 	FIL myFILE;
 	UINT testByte; 										  // error detection 
-	bool datasave_flg = true;
-	bool datatransmit_flg = true;
+	
+	//data save
+	bool 	datasave_flg = false;
+ 
 
 	//Timer
 	uint16_t ms_tmr = 0;
@@ -201,6 +208,8 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+	//HAL_UART_Receive_DMA(&huart2, (uint8_t *)RxBuf, 24); //dma mode only in the mcu data
+	HAL_UART_Receive_IT(&huart2, (uint8_t *)RxBuf, 24);
   HAL_TIM_Base_Start_IT(&htim4);
   
   /* USER CODE END 2 */
@@ -655,13 +664,60 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
   /* Prevent unused argument(s) compilation warning */
 	if(huart->Instance == USART2){  
 		
-	//HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
-	datatransmit_flg = true;
 	}
 	/* NOTE: This function should not be modified, when the callback is needed,
            the HAL_UART_TxCpltCallback could be implemented in the user file
 	*/
 }
+
+
+ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  /* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_RxCpltCallback could be implemented in the user file
+   */
+	//add ring buffer
+	// data pacing and save buff to transmit array
+	if(huart->Instance == USART2){
+		receiveflag = true;
+//				memmove(&RxBuf[0], &RxBuf[0],sizeof(uint8_t)*24);	
+//				 // disconnect -> 
+//				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+//				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
+//				bool data_received = false;
+//				for(char i = buff_index; i<buff_maxsize; i++){				
+//				
+//				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
+//				char buff_index_2 = (i+1)%buff_maxsize;
+//				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
+//					
+//					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
+//					buff_index = i; // head
+//					//rxBuf  transmit	
+//					//useBuff = true;
+//					memset(rxBuf_,0,24*sizeof(rxBuf_[0]));	
+//					for(int k = 0; k<buff_maxsize; k++){
+//					char c = (i + k)%buff_maxsize;	
+//					rxBuf_[k] = rxBuf[c];
+//					}
+//					//useBuff = false;
+//					data_received = true;	
+//					break;
+//					}
+//			}
+//			if(!data_received) buff_index = 0;
+//					memset(rxBuf_crc,0, 24*sizeof(rxBuf_crc[0]));			
+	
+	}
+}
+
+
+void wdg_activate(){
+	HAL_NVIC_SystemReset();
+}
+
+
 
 /* USER CODE END 4 */
 
@@ -676,18 +732,6 @@ void StartDefaultTask(void const * argument)
 {                
   /* init code for FATFS */
   MX_FATFS_Init();
-
-  /* init code for usart2 DMA parser */
-//static uint8_t msg_list[PARSER_MESSAGE_LIST_SIZE][PARSER_MESSAGE_SIZE];
-	
-	//free rtos -> 1ms data 
-
-	//StreamBuffer_t xStreamBuffer;
-
-	
-	
-	
-	
 	
   /* USER CODE BEGIN 5 */
 	
@@ -697,7 +741,6 @@ void StartDefaultTask(void const * argument)
 	char testname[20];
 	char filetxt[5] = ".txt"; // directory
 	f_mkdir(testname);
-	//strcat(testnum,filetxt);
 	
 	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
@@ -722,7 +765,7 @@ void StartDefaultTask(void const * argument)
 	}------------------>*/
  // /*< -- initialize mpu9250 && AK8963
 	
-	initMPU9250();
+		initMPU9250();
 	//initAK8963(&mag_x);
 
 //--------------*/	
@@ -730,17 +773,24 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  
-	  txdata[0] = 0xff;
-	HAL_UART_Transmit_IT(&huart1,txdata,24);
-  
+		
+	txdata[0] = 0xff;
+	if(receiveflag){
+		// data copy
+		receiveflag = false;
+		HAL_UART_Receive_IT(&huart2, (uint8_t *)RxBuf, 24);
+	}
+		
+		
+	//I2C 
 	i2cBuf[0] = ACCEL_XOUT_H;  //Register address: X_axis H in accel 
 	HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, i2cBuf, 1, 1); // data write for the reading specific address
 	i2cBuf[1] = 0x00;
 	HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, &i2cBuf[1], 6, 10); // Data receive sequencing from i2cBuf[1]
-		acc_x = -(i2cBuf[1]<<8 | i2cBuf[2]);
-		acc_y = -(i2cBuf[3]<<8 | i2cBuf[4]);
-		acc_z =  (i2cBuf[5]<<8 | i2cBuf[6]);
+	
+	acc_x = -(i2cBuf[1]<<8 | i2cBuf[2]);
+	acc_y = -(i2cBuf[3]<<8 | i2cBuf[4]);
+	acc_z =  (i2cBuf[5]<<8 | i2cBuf[6]);
 	memcpy(&Imu_dataBuf[0], &i2cBuf[1], 6);
 	memset(i2cBuf, 0 , 7*sizeof(i2cBuf[0]));
 	  
@@ -790,6 +840,8 @@ void StartDefaultTask(void const * argument)
    txdata[22] = 0xFF;txdata[23] = 0xFE;
 
  
+//	SD card Data transmit
+
 //   	if(datasave_flg){
 //	for(int i =0; i<24; i++) {
 //	f_printf(&SDFile, "%02x", txdata[i]);	
@@ -802,13 +854,13 @@ void StartDefaultTask(void const * argument)
 //		f_close(&SDFile);
 //	}
 //	
+
+//	Data transmit
 	if(_10ms_flg){
 		_10ms_flg = false;
-	if(datatransmit_flg){
-	HAL_UART_Transmit_IT(&huart2,txdata,24);
-	datatransmit_flg = false;
+	// HAL_UART_Transmit_IT(&huart1,txdata,44);
 	}
-}
+
 	//osDelay(1);
   }
   /* USER CODE END 5 */ 
@@ -836,9 +888,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		_10ms_tmr++;
 		ms_sv_tmr ++;
 		if(ms_tmr % 10 == 0){
-			//_100ms_flg = true;
 			_10ms_flg = true;
-			ms_sv_tmr++;
 			ms_tmr = 0;
 		}
 		if(_10ms_tmr % 100 == 0){
@@ -849,7 +899,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		
 		if(ms_sv_tmr % 10000 == 0){ // 10sec later - date
 			datasave_flg = false;
-			
 			ms_sv_tmr = 0;
 		}
 		

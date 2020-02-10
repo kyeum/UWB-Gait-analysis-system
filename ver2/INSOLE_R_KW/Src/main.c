@@ -1,4 +1,10 @@
 /* USER CODE BEGIN Header */
+/*Definition in INSOLE_R_KR
+DATASET :
+INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 16BYTE
+INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 26BYTE
+IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
+*/
 /**
   ******************************************************************************
   * @file           : main.c
@@ -87,42 +93,31 @@ void StartDefaultTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	//Communication buffers
-	uint8_t txdata[34]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
-	uint8_t rxBuf[24] = {0};
-	uint8_t rxBuf_[24] = {0};
-	uint8_t rxBuf_crc[24] = {0};
-	uint8_t cp_rxBuf_[24] = {0,};	\
-
-	bool useBuff = false;
-	bool useBuff_mx = false;
-
+	uint8_t txdata[26]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
+	uint8_t rxBuf[16] = {0};
+	uint8_t rxBuf_[16] = {0};
+	uint8_t rxBuf_crc[16] = {0};
+	uint8_t cp_rxBuf_[16] = {0,};	\
 	uint8_t buff_index = 0;
-	uint8_t rxBuf_transmit[24] = {0};
+	
+	//ADC DMA
 	uint16_t adcValArray[5] = {0,};
-	//crcval
+
+	//crc
 	uint32_t crcArray[8] = {0,};
 	uint32_t crcArray_send[9] = {0,};
-
 	uint16_t crcval = 0;
-
-	//test
-	uint16_t cal_val = 0;
-	uint16_t receive_val =0;
 	
 	//buff calcualtion
-	//uint8_t rxBuf_crc[24] = {0};
-	bool crc_test = true;
-	bool crc_test2 = false;
+	uint16_t cal_val = 0;
+	uint16_t receive_val =0;
 
-	bool rxBuf_trans = true;
-	
 	//SD card variables 
 	extern char SDPath[4];   /* SD logical drive path */
 	extern FATFS SDFatFS;    /* File system object for SD logical drive */
 	extern FIL SDFile;       /* File object for SD */
 
 	//FILE I/O operation
-
 	FRESULT res;                                          /* FatFs function common result code */
 	uint32_t byteswritten, bytesread;                     /* File write/read counts */
 	uint8_t wtext[] = "Hello from kyeum!"; 			      /* File write start buffer */
@@ -135,6 +130,8 @@ void StartDefaultTask(void const * argument);
 	
 	//Timer
 	bool _10ms_flg = false;
+	bool _1000ms_flg = false;
+
 	uint16_t ms_tmr = 0;
 	uint16_t _100ms_tmr = 0;
 	uint16_t ms_sv_tmr = 0;
@@ -628,13 +625,13 @@ static void MX_GPIO_Init(void)
 					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
 					buff_index = i; // head
 					//rxBuf  transmit	
-					useBuff = true;
+					//useBuff = true;
 					memset(rxBuf_,0,24*sizeof(rxBuf_[0]));	
 					for(int k = 0; k<buff_maxsize; k++){
 					char c = (i + k)%buff_maxsize;	
 					rxBuf_[k] = rxBuf[c];
 					}
-					useBuff = false;
+					//useBuff = false;
 					data_received = true;	
 					break;
 					}
@@ -671,20 +668,16 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-    
-    
-                 
   /* init code for FATFS */
   MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
-	
+	//sd
 	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 	
 	char testname[20];
 	char filetxt[5] = ".txt"; // directory
 	f_mkdir(testname);
-	//strcat(testnum,filetxt);
 	
 	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
@@ -700,39 +693,57 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  if(wdg_cnt > 30) wdg_activate();
+	//  if(wdg_cnt > 30) wdg_activate();
 	  
-		memset(txdata,0,34 * sizeof(txdata[0])); // txbuffer clear
+		memset(txdata,0,26 * sizeof(txdata[0])); // txbuffer clear
+
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
+		//Right leg insole
 		for(int i =0; i<5; i++){ // right / left -- insole + Imu dataset :
 		char a = i*2;
-		txdata[2+a] = adcValArray[i] >> 8;  //hi
-		txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		//txdata[2+a] = adcValArray[i] >> 8;  //hi
+		//txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		txdata[2+a] = 1;  //hi
+		txdata[3+a] = 2;	
 		}
-
+		//Left leg insole from usart 
+		for(int i =12; i<22; i++){ // right / left -- insole + Imu dataset :
+		txdata[i] = 1;
+		}
 		
-		if(!useBuff){ // if not rxdata received, just send to other pcb
+		
+		
+		
+		/*	
 		memmove(&cp_rxBuf_[0], &rxBuf_[0], sizeof(uint8_t)*24); 
-		}
-		else
-		{
-			continue;
-		}
-
 		memset(crcArray,0,8*sizeof(crcArray[0]));
-		memmove(&crcArray[0], &cp_rxBuf_[2], sizeof(uint8_t)*18); 
-		char crc_begin = 20; //MLSB
-		char crc_end = 21;   //LLSB	
-	    receive_val = (int16_t)(((int16_t)cp_rxBuf_[crc_begin] << 8) | cp_rxBuf_[crc_end]);
+		memmove(&crcArray[0], &cp_rxBuf_[2], sizeof(uint8_t)*10); 
+		char crc_begin = 12; //MLSB
+		char crc_end = 13;   //LLSB	
+	  receive_val = (int16_t)(((int16_t)cp_rxBuf_[crc_begin] << 8) | cp_rxBuf_[crc_end]);
 		cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
 	    if(cal_val == receive_val)
 		{
-			memmove(&txdata[12], &cp_rxBuf_[2], sizeof(uint8_t)*18); 
-			//memcpy(&txdata[12], &cp_rxBuf_[2], 18);	 //received data	
+			memmove(&txdata[12], &cp_rxBuf_[2], sizeof(uint8_t)*10); 
 		}			
 		else
 		{
+			wdg_cnt ++;
+			continue;
+		}
+	*/
+		// Imu_databuff -> 32uart data set
+		 memset(crcArray_send,0,8*sizeof(crcArray_send[0]));
+		 memcpy(&crcArray_send[0], &txdata[2] , 24); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,6)& 0xffff;
+	
+		txdata[22] = crcval >> 8; 
+		txdata[23] = crcval & 0xff;
+		txdata[24] = 0xFF;
+		txdata[25] = 0xFE;
+
+		//	DATA SAVE TO LEFT LEG	
 //			if(datasave_flg){
 //			for(int i =0; i<24; i++) {
 //			f_printf(&SDFile, "%02x", cp_rxBuf_[i]);
@@ -752,28 +763,14 @@ void StartDefaultTask(void const * argument)
 //			{
 //			f_close(&SDFile);
 //			}
-			wdg_cnt ++;
-			continue;
-		}
-		// data crc
-		txdata[30] = 0; 
-		txdata[31] = 0;
-		// Imu_databuff -> 32uart data set
-		 memset(crcArray_send,0,8*sizeof(crcArray_send[0]));
-		 memcpy(&crcArray_send[0], &txdata[2] , 28); 
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,7)& 0xffff;
-	
-		txdata[30] = crcval >> 8; 
-		txdata[31] = crcval & 0xff;
-		txdata[32] = 0xFF;
-		txdata[33] = 0xFE;
-//	DATA SAVE TO LEFT LEG	
 
-		   if(_10ms_flg){
-			   _10ms_flg = false;
+		   if(_1000ms_flg){
+			   _1000ms_flg = false;
+				 HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+				 HAL_UART_Transmit_IT(&huart1,txdata,26); // 4byte + 18 + 10 byte(insole right)+ CRC 2 : 34 byte				
+
 			}
 //	TRANSMIT DATA TO LEFT LEG	
-		HAL_UART_Transmit_IT(&huart1,txdata,34); // 4byte + 18 + 10 byte(insole right)+ CRC 2 : 34 byte				
 	}
   /* USER CODE END 5 */ 
 }
@@ -800,12 +797,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		_100ms_tmr++;
 		ms_sv_tmr++;
 
-		if(ms_tmr % 10 == 0){
-			//_100ms_flg = true;
-			_10ms_flg = true;
+		if(ms_tmr % 1000 == 0){
+			_1000ms_flg = true;
 			ms_tmr = 0;
 		}
-		if(_100ms_tmr % 100 == 0){
+		if(_100ms_tmr % 100 == 0){ // 10 sec
 			_100ms_tmr = 0;
 			if(!datasave_flg) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
 		}
