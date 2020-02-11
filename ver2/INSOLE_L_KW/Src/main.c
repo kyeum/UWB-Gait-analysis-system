@@ -121,7 +121,18 @@ void StartDefaultTask(void const * argument);
 
 	//timer
 	uint16_t tmr_ms=0;
+	uint16_t tmr_1000ms=0;
+
+	uint16_t svtmr_ms=0;
+
 	bool _1000ms_flg = false;
+	bool datasave_flg = false;
+	//test
+	uint8_t k = 0;
+	bool datatrans_flg = false;
+	bool datatest_flg = false;
+
+	
 /* USER CODE END 0 */
 
 /**
@@ -164,6 +175,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
+  
+  
+  
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -203,6 +217,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	 
+
   }
   /* USER CODE END 3 */
 }
@@ -589,6 +605,18 @@ static void MX_GPIO_Init(void)
 			
 	}
 }
+ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  /* NOTE: This function should not be modified, when the callback is needed,
+           the HAL_UART_RxCpltCallback could be implemented in the user file
+   */
+	//add ring buffer
+	// data pacing and save buff to transmit array
+	if(huart->Instance == USART1){
+		datatrans_flg	= true;
+	}
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -603,20 +631,48 @@ void StartDefaultTask(void const * argument)
   /* init code for FATFS */
   MX_FATFS_Init();
   /* USER CODE BEGIN 5 */
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+
+	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+	}
+	else{
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		}
+	
+	
+	
   /* Infinite loop */
   for(;;)
   {  
+	if(_1000ms_flg) // 5ms data send
+		{
+		_1000ms_flg = false;
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
 	
 		for(int i =0; i<5; i++){
 		char a = i*2;
-		txdata[2+a] = adcValArray[i] >> 8;  //hi
-		txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		//txdata[2+a] = adcValArray[i] >> 8;  //hi
+		//txdata[3+a] = adcValArray[i] & 0xFF;//lo
+		txdata[2+a] = k;
+		txdata[3+a] = k ;	
 		}
 		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
-		memcpy(&crcArray_send[0],&txdata[2] , 3); 
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,10)& 0xffff;
+		memcpy(&crcArray_send[0],&txdata[2] , 10); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,3)& 0xffff;
 		 
 		txdata[12] = crcval >> 8; 
 		txdata[13] = crcval & 0xff;
@@ -624,14 +680,28 @@ void StartDefaultTask(void const * argument)
 		txdata[15] = 0xFE;
 	
 	//TRANSMIT DATA TO PC
-
-		HAL_UART_Transmit_IT(&huart1,txdata,16);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
-	
-		if(_1000ms_flg)
-		{
-			_1000ms_flg = false;
-			HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+		//	DATA SAVE TO LEFT LEG	
+			if(datasave_flg){
+			for(int i =0; i<16; i++) {
+			f_printf(&SDFile, "%02x", txdata[i]);
+			}
+			f_printf(&SDFile, "\n");
+			}
+			else
+			{
+			f_close(&SDFile);
+			}
+			
+			HAL_UART_Transmit_IT(&huart1,txdata,16);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
+			
+			if(datatest_flg) // 1sec flash out
+			{
+				datatest_flg = false;
+				HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+			}		
 		}
+
+	
   }
   /* USER CODE END 5 */ 
 }
@@ -656,12 +726,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 	if (htim->Instance == TIM4) {
 		tmr_ms ++;
-		if(tmr_ms%1000 == 0)
+		tmr_1000ms ++;
+		svtmr_ms ++;
+		if(tmr_ms%5 == 0)
 		{
+			k++;
 			_1000ms_flg = true;
 			tmr_ms = 0;
 		}
-		
+		if(tmr_1000ms%1000 == 0)
+		{
+			datatest_flg = true;
+			tmr_1000ms = 0;
+		}
+		if(svtmr_ms%10000 == 0)
+		{
+			datasave_flg = true;
+			svtmr_ms = 0;
+		}
 
   }
 	

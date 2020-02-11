@@ -63,4 +63,3 @@ imu_kw\main.o: ../Inc/sd_diskio.h
 imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 imu_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-imu_kw\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/stream_buffer.h

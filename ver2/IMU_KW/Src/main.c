@@ -60,6 +60,7 @@ IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
 	#define SMPLRT_DIV       0x19
 	#define PWR_MGMT_1       0x6B // Device defaults to the SLEEP mode
 	#define PWR_MGMT_2       0x6C
+	#define AK8963_ASAX      0x10  // Fuse ROM x-axis sensitivity adjustment value
 enum Ascale {
   AFS_2G = 0,
   AFS_4G,
@@ -72,6 +73,17 @@ enum Gscale {
   GFS_1000DPS,
   GFS_2000DPS
 };
+
+enum Mscale {
+  MFS_14BITS = 0, // 0.6 mG per LSB
+  MFS_16BITS      // 0.15 mG per LSB
+};
+
+uint8_t Ascale = AFS_2G;     // AFS_2G, AFS_4G, AFS_8G, AFS_16G
+uint8_t Gscale = GFS_250DPS; // GFS_250DPS, GFS_500DPS, GFS_1000DPS, GFS_2000DPS
+uint8_t Mscale = MFS_16BITS; // MFS_14BITS or MFS_16BITS, 14-bit or 16-bit magnetometer resolution
+uint8_t Mmode = 0x06;        // Either 8 Hz 0x02) or 100 Hz (0x06) magnetometer data ODR  
+float aRes, gRes, mRes;      // scale resolutions per LSB for the sensors
 
 /* USER CODE END PD */
 
@@ -97,6 +109,8 @@ UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 osThreadId defaultTaskHandle;
+osThreadId defaultTaskHandle2;
+
 /* USER CODE BEGIN PV */
 	
 	
@@ -114,28 +128,54 @@ static void MX_USART6_UART_Init(void);
 static void MX_CRC_Init(void);
 static void MX_I2C1_Init(void);
 void StartDefaultTask(void const * argument);
+void StartDefaultTask2(void const * argument);
 
+void wdg_activate(void);
+void initMPU9250(void);
+void readMagData(int8_t * destination);
+void readGyroData(int8_t * destination);
+void readAccelData(int8_t * destination);
+void writeByte(uint8_t address, uint8_t subAddress, uint8_t data);
+void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest);
+char readByte(uint8_t address, uint8_t subAddress);
+
+void initAK8963(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+	//watchdog
+	
+	uint8_t wdg_cnt = 0;
 	// I2C and IMU
-	int16_t acc_x,acc_y,acc_z;
-	int16_t gy_x,gy_y,gy_z;
-	int16_t mag_x,mag_y,mag_z;
+	int8_t acc_[6] = {0,};
+	int8_t gy_[6] = {0,};
+	int8_t mag_[6] = {0,};;
+	
+	//recieved data
+	uint16_t receive_val;
+	uint16_t cal_val;
+	
 	
 	// Communication
-	bool receiveflag = false;
-	uint8_t txdata[44];
-	uint8_t RxBuf[26];
-	
+	bool received_flag = false;
+	uint8_t txdata[46];
+	uint8_t rxBuf[26];
+	uint8_t rxBuf_[26];
+	uint8_t rxBuf_crc[26];
+
 	uint8_t i2cBuf[7];
-	uint8_t Imu_dataBuf[18] = {0,};
+	uint8_t Imu_dataBuf[18] = {0,};\
+	uint8_t buff_index = 0;
+	
+	bool data_received_dma = true;
 		
 	//crc
 	uint32_t crcArray[8] = {0,};
+	uint32_t crcArray_send[10] = {0,};
+
 	uint16_t crcval = 0;
 	
 	//SD card variables 
@@ -155,17 +195,20 @@ void StartDefaultTask(void const * argument);
 	UINT testByte; 										  // error detection 
 	
 	//data save
-	bool 	datasave_flg = false;
+	bool datasave_flg = false;
  
 
 	//Timer
 	uint16_t ms_tmr = 0;
 	uint16_t _10ms_tmr = 0;
+	uint16_t send_10ms_tmr = 0;
+
 	uint16_t ms_sv_tmr = 0;
 	bool _100ms_flg = false;
 	bool _10ms_flg = false;
 	
-
+	uint16_t test_val = 0;
+	
 	
 	
 /* USER CODE END 0 */
@@ -207,11 +250,12 @@ int main(void)
   MX_CRC_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
+	HAL_TIM_Base_Start_IT(&htim4);
+	
+	initMPU9250();
+	initAK8963();
 
-	//HAL_UART_Receive_DMA(&huart2, (uint8_t *)RxBuf, 24); //dma mode only in the mcu data
-	HAL_UART_Receive_IT(&huart2, (uint8_t *)RxBuf, 24);
-  HAL_TIM_Base_Start_IT(&htim4);
-  
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -232,8 +276,11 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  osThreadDef(defaultTaskHandle, StartDefaultTask, osPriorityAboveNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTaskHandle), NULL);
+	
+	//osThreadDef(defaultTaskHandle2, StartDefaultTask2, osPriorityNormal, 0, 128);
+  //defaultTaskHandle2 = osThreadCreate(osThread(defaultTaskHandle2), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -251,6 +298,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
   }
   /* USER CODE END 3 */
 }
@@ -340,7 +388,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 1000000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -581,73 +629,151 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
- void initAK8963(float * destination)
+ void initAK8963()
 {
   // First extract the factory calibration for each magnetometer axis
-  //uint8_t rawData[3];  // x/y/z gyro calibration data stored here
-  //writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
-  osDelay(10);
-
-  //writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
-  osDelay(10);
-  //readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);  // Read the x-, y-, and z-axis calibration values
+  uint8_t rawData[3];  // x/y/z gyro calibration data stored here
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
+  HAL_Delay(100);	
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
+  HAL_Delay(100);	
+//  readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);  // Read the x-, y-, and z-axis calibration values
 //  destination[0] =  (float)(rawData[0] - 128)/256.0f + 1.0f;   // Return x-axis sensitivity adjustment values, etc.
 //  destination[1] =  (float)(rawData[1] - 128)/256.0f + 1.0f;  
 //  destination[2] =  (float)(rawData[2] - 128)/256.0f + 1.0f; 
-//  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
-  osDelay(10);
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
+  HAL_Delay(100);	
   // Configure the magnetometer for continuous read and highest resolution
   // set Mscale bit 4 to 1 (0) to enable 16 (14) bit resolution in CNTL register,
   // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
-  //writeByte(AK8963_ADDRESS, AK8963_CNTL, Mscale << 4 | Mmode); // Set magnetometer data resolution and sample ODR
-  osDelay(10);
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, Mscale << 4 | Mmode); // Set magnetometer data resolution and sample ODR
+  HAL_Delay(100);	
 }
 
+void writeByte(uint8_t address, uint8_t subAddress, uint8_t data)
+{
+   uint8_t data_write[2];
+   data_write[0] = subAddress;
+   data_write[1] = data;
+   HAL_I2C_Master_Transmit(&hi2c1, address, data_write, 2, 10);
+}
+char readByte(uint8_t address, uint8_t subAddress)
+{
+    uint8_t data[1]; // `data` will store the register data     
+    uint8_t data_write[1];
+    data_write[0] = subAddress;
+	HAL_I2C_Master_Transmit(&hi2c1, address, data_write, 1, 10);
+	HAL_I2C_Master_Receive(&hi2c1, address, data, 1, 10); // Data receive sequencing from i2cBuf[1]
+    return data[0]; 
+}
+
+void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest)
+{     
+    uint8_t data[14];
+    uint8_t data_write[1];
+    data_write[0] = subAddress;
+	HAL_I2C_Master_Transmit(&hi2c1, address, data_write, 1, 10);
+	HAL_I2C_Master_Receive(&hi2c1, address, data, count, 10); // Data receive sequencing from i2cBuf[1]
+    for(int ii = 0; ii < count; ii++) {
+     dest[ii] = data[ii];
+    }
+} 
+
+
+
+void readAccelData(int8_t * destination)
+{
+  uint8_t rawData[6];  // x/y/z accel register data stored here
+  uint8_t data_write[1];
+  data_write[0] = ACCEL_XOUT_H;
+  HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, data_write, 1,10);
+  HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, rawData, 6, 10); // Data receive sequencing from i2cBuf[1]
+
+  memcpy(&destination[0], &rawData[0],6); 
+}
+
+void readGyroData(int8_t * destination)
+{
+	
+  uint8_t rawData[6];  // x/y/z accel register data stored here
+  uint8_t data_write[1];
+  data_write[0] = GYRO_XOUT_H;
+  HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, data_write, 1,10);
+  HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, rawData, 6, 10); // Data receive sequencing from i2cBuf[1]
+  memcpy(&destination[0], &rawData[0],6); 
+ 
+}
+
+void  readMagData(int8_t * destination)
+{
+  uint8_t rawData[7];  // x/y/z gyro register data, ST2 register stored here, must read ST2 at end of data acquisition
+  if(readByte(AK8963_ADDRESS, AK8963_ST1) & 0x01) { // wait for magnetometer data ready bit to be set
+	 uint8_t data_write[1];
+	data_write[0] = AK8963_XOUT_L;
+	HAL_I2C_Master_Transmit(&hi2c1, AK8963_ADDRESS, data_write, 1,10);
+	HAL_I2C_Master_Receive(&hi2c1, AK8963_ADDRESS, rawData, 7, 10); // Data receive sequencing from i2cBuf[1] 
+	uint8_t c = rawData[6]; // End data read by reading ST2 register
+    if(!(c & 0x08)) { // Check if magnetic sensor overflow set, if not then report data
+		memcpy(&destination[0], &rawData[0],6); 
+		
+   }
+  }
+}
 
 void initMPU9250()
 {  
- // Initialize MPU9250 device
+// Initialize MPU9250 device
  // wake up device
-  //writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00); // Clear sleep mode bit (6), enable all sensors 
-	osDelay(100);
- // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+  writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00); // Clear sleep mode bit (6), enable all sensors 
+  HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
  // get stable time source
-  //writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01);  // Set clock source to be PLL with x-axis gyroscope reference, bits 2:0 = 001
+  writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01);  // Set clock source to be PLL with x-axis gyroscope reference, bits 2:0 = 001
+  HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
  // Configure Gyro and Accelerometer
  // Disable FSYNC and set accelerometer and gyro bandwidth to 44 and 42 Hz, respectively; 
  // DLPF_CFG = bits 2:0 = 010; this sets the sample rate at 1 kHz for both
  // Maximum delay is 4.9 ms which is just over a 200 Hz maximum rate
-  //writeByte(MPU9250_ADDRESS, CONFIG, 0x03);  
- 
+  writeByte(MPU9250_ADDRESS, CONFIG, 0x03);  
+   HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
  // Set sample rate = gyroscope output rate/(1 + SMPLRT_DIV)
- // writeByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x04);  // Use a 200 Hz rate; the same rate set in CONFIG above
- 
+  writeByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x04);  // Use a 200 Hz rate; the same rate set in CONFIG above
+   HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
  // Set gyroscope full scale range
  // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are left-shifted into positions 4:3
-  //uint8_t c = readByte(MPU9250_ADDRESS, GYRO_CONFIG); // get current GYRO_CONFIG register value
+  uint8_t c = readByte(MPU9250_ADDRESS, GYRO_CONFIG); // get current GYRO_CONFIG register value
+    HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
  // c = c & ~0xE0; // Clear self-test bits [7:5] 
- // c = c & ~0x02; // Clear Fchoice bits [1:0] 
- // c = c & ~0x18; // Clear AFS bits [4:3]
- // c = c | Gscale << 3; // Set full scale range for the gyro
+  c = c & ~0x02; // Clear Fchoice bits [1:0] 
+  c = c & ~0x18; // Clear AFS bits [4:3]
+  c = c | Gscale << 3; // Set full scale range for the gyro
  // c =| 0x00; // Set Fchoice for the gyro to 11 by writing its inverse to bits 1:0 of GYRO_CONFIG
- // writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
+  writeByte(MPU9250_ADDRESS, GYRO_CONFIG, c ); // Write new GYRO_CONFIG value to register
+    HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
   
  // Set accelerometer full-scale range configuration
- // c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG); // get current ACCEL_CONFIG register value
+  c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG); // get current ACCEL_CONFIG register value
  // c = c & ~0xE0; // Clear self-test bits [7:5] 
- // c = c & ~0x18;  // Clear AFS bits [4:3]
- // c = c | Ascale << 3; // Set full scale range for the accelerometer 
- // writeByte(MPU9250_ADDRESS, ACCEL_CONFIG, c); // Write new ACCEL_CONFIG register value
+  c = c & ~0x18;  // Clear AFS bits [4:3]
+  c = c | Ascale << 3; // Set full scale range for the accelerometer 
+    HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
+  writeByte(MPU9250_ADDRESS, ACCEL_CONFIG, c); // Write new ACCEL_CONFIG register value
+  HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
  // Set accelerometer sample rate configuration
  // It is possible to get a 4 kHz sample rate from the accelerometer by choosing 1 for
  // accel_fchoice_b bit [3]; in this case the bandwidth is 1.13 kHz
-  //c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG2); // get current ACCEL_CONFIG2 register value
-  //c = c & ~0x0F; // Clear accel_fchoice_b (bit 3) and A_DLPFG (bits [2:0])  
-  //c = c | 0x03;  // Set accelerometer rate to 1 kHz and bandwidth to 41 Hz
-  //writeByte(MPU9250_ADDRESS, ACCEL_CONFIG2, c); // Write new ACCEL_CONFIG2 register value
+  c = readByte(MPU9250_ADDRESS, ACCEL_CONFIG2); // get current ACCEL_CONFIG2 register value
+  c = c & ~0x0F; // Clear accel_fchoice_b (bit 3) and A_DLPFG (bits [2:0])  
+  c = c | 0x03;  // Set accelerometer rate to 1 kHz and bandwidth to 41 Hz
+  writeByte(MPU9250_ADDRESS, ACCEL_CONFIG2, c); // Write new ACCEL_CONFIG2 register value
+  HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
  // The accelerometer, gyro, and thermometer are set to 1 kHz sample rates, 
  // but all these rates are further reduced by a factor of 5 to 200 Hz because of the SMPLRT_DIV setting
@@ -655,14 +781,18 @@ void initMPU9250()
   // Configure Interrupts and Bypass Enable
   // Set interrupt pin active high, push-pull, and clear on read of INT_STATUS, enable I2C_BYPASS_EN so additional chips 
   // can join the I2C bus and all can be controlled by the Arduino as master
-   //writeByte(MPU9250_ADDRESS, INT_PIN_CFG, 0x22);    
-  // writeByte(MPU9250_ADDRESS, INT_ENABLE, 0x01);  // Enable data ready (bit 0) interrupt
+   writeByte(MPU9250_ADDRESS, INT_PIN_CFG, 0x22);    
+     HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
+   writeByte(MPU9250_ADDRESS, INT_ENABLE, 0x01);  // Enable data ready (bit 0) interrupt
+     HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
+
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Prevent unused argument(s) compilation warning */
-	if(huart->Instance == USART2){  
+	if(huart->Instance == USART1){  
 		
 	}
 	/* NOTE: This function should not be modified, when the callback is needed,
@@ -680,35 +810,19 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	//add ring buffer
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
-		receiveflag = true;
-//				memmove(&RxBuf[0], &RxBuf[0],sizeof(uint8_t)*24);	
-//				 // disconnect -> 
-//				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-//				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
-//				bool data_received = false;
-//				for(char i = buff_index; i<buff_maxsize; i++){				
-//				
-//				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
-//				char buff_index_2 = (i+1)%buff_maxsize;
-//				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
-//					
-//					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
-//					buff_index = i; // head
-//					//rxBuf  transmit	
-//					//useBuff = true;
-//					memset(rxBuf_,0,24*sizeof(rxBuf_[0]));	
-//					for(int k = 0; k<buff_maxsize; k++){
-//					char c = (i + k)%buff_maxsize;	
-//					rxBuf_[k] = rxBuf[c];
-//					}
-//					//useBuff = false;
-//					data_received = true;	
-//					break;
-//					}
-//			}
-//			if(!data_received) buff_index = 0;
-//					memset(rxBuf_crc,0, 24*sizeof(rxBuf_crc[0]));			
-	
+		
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
+
+					if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF)
+					{
+						memcpy(&rxBuf_[0], &rxBuf_crc[0], 26 );
+						received_flag = true;
+					}
+					else
+					{
+						received_flag = false;
+						wdg_activate();
+					}
 	}
 }
 
@@ -728,21 +842,21 @@ void wdg_activate(){
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
+
+
 void StartDefaultTask(void const * argument)
 {                
   /* init code for FATFS */
   MX_FATFS_Init();
 	
   /* USER CODE BEGIN 5 */
-	
-	
 	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-	
-	char testname[20];
-	char filetxt[5] = ".txt"; // directory
-	f_mkdir(testname);
-	
+
 	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		osDelay(500);
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
@@ -751,117 +865,79 @@ void StartDefaultTask(void const * argument)
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		osDelay(2000);
 		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		}
-	
-		
-  /*<------------------ find ID for the I2C devices	
-  	for(uint8_t i=0; i<255; i++)
-	{
-		if(HAL_I2C_IsDeviceReady(&hi2c1, i, 1, 10) == HAL_OK)
-		{
-			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
-			break;
-		}
-	}------------------>*/
- // /*< -- initialize mpu9250 && AK8963
-	
-		initMPU9250();
-	//initAK8963(&mag_x);
 
-//--------------*/	
 
   /* Infinite loop */
   for(;;)
   {
-		
-	txdata[0] = 0xff;
-	if(receiveflag){
-		// data copy
-		receiveflag = false;
-		HAL_UART_Receive_IT(&huart2, (uint8_t *)RxBuf, 24);
-	}
-		
-		
-	//I2C 
-	i2cBuf[0] = ACCEL_XOUT_H;  //Register address: X_axis H in accel 
-	HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, i2cBuf, 1, 1); // data write for the reading specific address
-	i2cBuf[1] = 0x00;
-	HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, &i2cBuf[1], 6, 10); // Data receive sequencing from i2cBuf[1]
-	
-	acc_x = -(i2cBuf[1]<<8 | i2cBuf[2]);
-	acc_y = -(i2cBuf[3]<<8 | i2cBuf[4]);
-	acc_z =  (i2cBuf[5]<<8 | i2cBuf[6]);
-	memcpy(&Imu_dataBuf[0], &i2cBuf[1], 6);
-	memset(i2cBuf, 0 , 7*sizeof(i2cBuf[0]));
-	  
-	i2cBuf[0] = GYRO_XOUT_H;  //Register address: X_axis H in gyro
-	HAL_I2C_Master_Transmit(&hi2c1, MPU9250_ADDRESS, i2cBuf, 1, 1);
-	i2cBuf[1] = 0x00;
-	HAL_I2C_Master_Receive(&hi2c1, MPU9250_ADDRESS, &i2cBuf[1], 6, 10);
-
-		gy_x = -(i2cBuf[1]<<8 | i2cBuf[2]);
-		gy_y = -(i2cBuf[3]<<8 | i2cBuf[4]);
-		gy_z =  (i2cBuf[5]<<8 | i2cBuf[6]);	 
-	memcpy(&Imu_dataBuf[6], &i2cBuf[1], 6);
-	memset(i2cBuf, 0 , 7*sizeof(i2cBuf[0]));
-	  
-	i2cBuf[0] = AK8963_ST1;  //Register address: X_axis status  
-	HAL_I2C_Master_Transmit(&hi2c1, AK8963_ADDRESS, i2cBuf, 1, 1);
-  
-	if(HAL_I2C_Master_Receive(&hi2c1, AK8963_ADDRESS, &i2cBuf[0], 1, 1)&0x01){
-	i2cBuf[0] = AK8963_XOUT_L;  //Register address: X_axis L in mag
-	HAL_I2C_Master_Receive(&hi2c1, AK8963_ADDRESS, &i2cBuf[1], 6, 1);
-	uint8_t c = i2cBuf[6]; // End data read by reading ST2 register
-		if(!(c & 0x08)) { // Check if magnetic sensor overflow set, if not then report data
-		mag_x = (int16_t)(((int16_t)i2cBuf[1] << 8) | i2cBuf[0]);  // Turn the MSB and LSB into a signed 16-bit value
-		mag_y = (int16_t)(((int16_t)i2cBuf[3] << 8) | i2cBuf[2]) ;  // Data stored as little Endian
-		mag_z = (int16_t)(((int16_t)i2cBuf[5] << 8) | i2cBuf[4]) ; 
-		
-		memcpy(&Imu_dataBuf[12], &i2cBuf[1], 6);
-		memset(i2cBuf, 0 , 7*sizeof(i2cBuf[0]));	
-	}
-   }
-   // data transmit to other boards!
-   txdata[0] = 0xFF;txdata[1] = 0xFF;
-   memcpy(&txdata[2], &Imu_dataBuf[0], 18);
-      
-   //crc reset
-  
-   // Imu_databuff -> 32uart data set
-   txdata[20] = 0; 
-   txdata[21] = 0;
-    memset(crcArray,0,8*sizeof(crcArray[0]));
-   	memcpy(&crcArray[0],&txdata[2] , 18); 
-   
-   crcval = HAL_CRC_Calculate(&hcrc,crcArray,5)& 0xffff;
-   txdata[20] = crcval >> 8; 
-   txdata[21] = crcval & 0xff;
-   
-   txdata[22] = 0xFF;txdata[23] = 0xFE;
-
- 
-//	SD card Data transmit
-
-//   	if(datasave_flg){
-//	for(int i =0; i<24; i++) {
-//	f_printf(&SDFile, "%02x", txdata[i]);	
-//	}
-//	f_printf(&SDFile, "\n");	
-
-//	}
-//	else
-//	{
-//		f_close(&SDFile);
-//	}
-//	
-
-//	Data transmit
-	if(_10ms_flg){
+		if(_10ms_flg){
 		_10ms_flg = false;
-	// HAL_UART_Transmit_IT(&huart1,txdata,44);
-	}
 
-	//osDelay(1);
+		if(received_flag) { 
+			uint8_t cprxBuf[26];
+			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*26); 
+			received_flag = false;
+
+			memset(crcArray,0,8*sizeof(crcArray[0]));
+			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*20); 
+			char crc_begin = 22; //MLSB
+			char crc_end = 23;   //LLSB	
+			receive_val = (int16_t)(((int16_t)cprxBuf[crc_begin] << 8) | cprxBuf[crc_end]);
+			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
+			if(cal_val == receive_val)
+			{
+				memmove(&txdata[4], &cprxBuf[2], sizeof(uint8_t)*20); 
+			}			
+			else
+			{
+				wdg_cnt ++;
+				continue;
+			}
+		}	
+		readAccelData(&acc_[0]);
+		readMagData(&mag_[0]);
+		readGyroData(&gy_[0]); 
+	
+		memmove(&txdata[24], &acc_[0],6); 
+		memmove(&txdata[30], &mag_[0],6); 
+		memmove(&txdata[36], &gy_[0],6); 
+
+		txdata[0] = 0xFF;
+		txdata[1] = 0xFF;
+		txdata[2] = send_10ms_tmr >> 8;
+		txdata[3] = send_10ms_tmr & 0xff;	
+		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
+		memcpy(&crcArray_send[0], &txdata[2] , 38); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,10)& 0xffff;
+	
+		txdata[42] = crcval >> 8; 
+		txdata[43] = crcval & 0xff;
+		txdata[44] = 0xFF;
+		txdata[45] = 0xFE;
+	
+	 HAL_UART_Transmit_IT(&huart1,txdata,46);
+	}
+  }
+  /* USER CODE END 5 */ 
+}
+
+
+
+void StartDefaultTask2(void const * argument)
+{                
+  /* init code for FATFS */
+
+  /* Infinite loop */
+  for(;;)
+  {
+
+	
+
   }
   /* USER CODE END 5 */ 
 }
@@ -891,10 +967,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			_10ms_flg = true;
 			ms_tmr = 0;
 		}
-		if(_10ms_tmr % 100 == 0){
+		if(_10ms_tmr % 10 == 0){
+			send_10ms_tmr++;
 			_10ms_tmr = 0;
-			_100ms_flg = true;
-			if(!datasave_flg) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
 		}
 		
 		if(ms_sv_tmr % 10000 == 0){ // 10sec later - date
@@ -933,6 +1008,25 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+
+
+
+
+//	SD card Data transmit
+
+//   	if(datasave_flg){
+//	for(int i =0; i<24; i++) {
+//	f_printf(&SDFile, "%02x", txdata[i]);	
+//	}
+//	f_printf(&SDFile, "\n");	
+
+//	}
+//	else
+//	{
+//		f_close(&SDFile);
+//	}
+//	
+
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

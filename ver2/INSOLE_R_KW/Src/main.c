@@ -85,6 +85,7 @@ static void MX_SDIO_SD_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART6_UART_Init(void);
 void StartDefaultTask(void const * argument);
+void wdg_activate();
 
 /* USER CODE BEGIN PFP */
 
@@ -93,12 +94,21 @@ void StartDefaultTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	//Communication buffers
+	//DMA
+	DMA_Event_t dma_uart_rx = {0,0,DMA_BUF_SIZE};
+	uint8_t dma_rx_buf[DMA_BUF_SIZE];       /* Circular buffer for DMA */
+	uint8_t data[DMA_BUF_SIZE] = {'\0'};    /* Data buffer that contains newly received data */	
+	bool dma_connect = false;
+	//
 	uint8_t txdata[26]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
 	uint8_t rxBuf[16] = {0};
 	uint8_t rxBuf_[16] = {0};
+	
 	uint8_t rxBuf_crc[16] = {0};
 	uint8_t cp_rxBuf_[16] = {0,};	\
 	uint8_t buff_index = 0;
+	bool received_flag = false;
+	bool received_end = false;
 	
 	//ADC DMA
 	uint16_t adcValArray[5] = {0,};
@@ -127,7 +137,7 @@ void StartDefaultTask(void const * argument);
 	FIL myFILE;
 	UINT testByte; 										  // error detection 
 	bool datasave_flg = true;
-	
+	bool datatest_flg = false;
 	//Timer
 	bool _10ms_flg = false;
 	bool _1000ms_flg = false;
@@ -139,6 +149,23 @@ void StartDefaultTask(void const * argument);
 	//wdg cnt
 	uint8_t wdg_cnt = 0;
 	
+	#define MAX_DMA_BUFFER_SIZE 16
+
+	//ringbuff
+	uint8_t tail=0;
+	uint8_t uartbuff[MAX_DMA_BUFFER_SIZE];
+	uint8_t uartDMAbuff[MAX_DMA_BUFFER_SIZE];
+
+	
+	uint8_t usartCurIndex = 0;
+	uint8_t usartprevIndex = 0;
+	uint8_t rxlen = 0;
+	uint16_t test_val = 0;
+	uint8_t k = 0;
+
+	bool data_received_dma = true;
+	
+	
 /* USER CODE END 0 */
 
 /**
@@ -146,6 +173,7 @@ void StartDefaultTask(void const * argument);
   * @retval int
   */
 int main(void)
+
 {
   /* USER CODE BEGIN 1 */
 
@@ -180,7 +208,7 @@ int main(void)
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 24); //dma mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -203,7 +231,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityRealtime, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -222,6 +250,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	   
+
   }
   /* USER CODE END 3 */
 }
@@ -308,13 +338,13 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_112CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
   }
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
-  */
+  */ 
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -605,39 +635,29 @@ static void MX_GPIO_Init(void)
  void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Prevent unused argument(s) compilation warning */
-  /* NOTE: This function should not be modified, when the callback is needed,
+  /* NOTE: This function should not be modified, when the callback is needed, 
            the HAL_UART_RxCpltCallback could be implemented in the user file
    */
 	//add ring buffer
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
-				memmove(&rxBuf[0], &rxBuf_crc[0],sizeof(uint8_t)*24);	
-				 // disconnect -> 
+				//if(test_val !=0){
 				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-				char buff_maxsize = sizeof(rxBuf) / sizeof(uint8_t);
-				bool data_received = false;
-				for(char i = buff_index; i<buff_maxsize; i++){				
-				
-				char buff_end = (i+buff_maxsize-1)%buff_maxsize;
-				char buff_index_2 = (i+1)%buff_maxsize;
-				char buff_end_2 = (i+buff_maxsize-2)%buff_maxsize;
+				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
+					received_flag = true;
+					dma_connect = true;
+					memcpy(&rxBuf_[0], &rxBuf_crc[0], 16 );
+
+				}
+				else
+				{
+					received_flag = false;
+					HAL_DMA_Abort(&hdma_usart2_rx);	
 					
-					if(rxBuf[i] == 0xFF && rxBuf[buff_index_2] == 0xFF&& rxBuf[buff_end_2] == 0xFF&& rxBuf[buff_end] == 0xFE){	
-					buff_index = i; // head
-					//rxBuf  transmit	
-					//useBuff = true;
-					memset(rxBuf_,0,24*sizeof(rxBuf_[0]));	
-					for(int k = 0; k<buff_maxsize; k++){
-					char c = (i + k)%buff_maxsize;	
-					rxBuf_[k] = rxBuf[c];
-					}
-					//useBuff = false;
-					data_received = true;	
-					break;
-					}
-			}
-			if(!data_received) buff_index = 0;
-					memset(rxBuf_crc,0, 24*sizeof(rxBuf_crc[0]));			
+
+				}
+			//}
+				test_val++;
 	}
 }
 
@@ -668,75 +688,80 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
+      
   /* init code for FATFS */
   MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
 	//sd
 	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-	
-	char testname[20];
-	char filetxt[5] = ".txt"; // directory
-	f_mkdir(testname);
-	
+
 	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(500);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 	}
 	else{
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_12);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+		osDelay(2000);
+		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 		}
-	
+//	
   /* Infinite loop */
   for(;;)
   {
-	//  if(wdg_cnt > 30) wdg_activate();
+	  if(_10ms_flg){
+		_10ms_flg = false;
+		//if(wdg_cnt > 10) wdg_activate();
 	  
-		memset(txdata,0,26 * sizeof(txdata[0])); // txbuffer clear
-
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
 		//Right leg insole
+		char b = k;
 		for(int i =0; i<5; i++){ // right / left -- insole + Imu dataset :
 		char a = i*2;
 		//txdata[2+a] = adcValArray[i] >> 8;  //hi
 		//txdata[3+a] = adcValArray[i] & 0xFF;//lo
-		txdata[2+a] = 1;  //hi
-		txdata[3+a] = 2;	
+	
+		txdata[2+a] = b;  //hi
+		txdata[3+a] = b;	
 		}
-		//Left leg insole from usart 
-		for(int i =12; i<22; i++){ // right / left -- insole + Imu dataset :
-		txdata[i] = 1;
-		}
-		
-		
-		
-		
-		/*	
-		memmove(&cp_rxBuf_[0], &rxBuf_[0], sizeof(uint8_t)*24); 
+		//Left leg insole from usart
+
+		if(received_flag) { 
+		received_flag = false;
+		uint8_t cprxBuf[16];
+		memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*16); 
+
 		memset(crcArray,0,8*sizeof(crcArray[0]));
-		memmove(&crcArray[0], &cp_rxBuf_[2], sizeof(uint8_t)*10); 
-		char crc_begin = 12; //MLSB
-		char crc_end = 13;   //LLSB	
-	  receive_val = (int16_t)(((int16_t)cp_rxBuf_[crc_begin] << 8) | cp_rxBuf_[crc_end]);
-		cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
-	    if(cal_val == receive_val)
-		{
-			memmove(&txdata[12], &cp_rxBuf_[2], sizeof(uint8_t)*10); 
-		}			
-		else
-		{
-			wdg_cnt ++;
-			continue;
+		memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*10); 
+			char crc_begin = 12; //MLSB
+			char crc_end = 13;   //LLSB	
+			receive_val = (int16_t)(((int16_t)cprxBuf[crc_begin] << 8) | cprxBuf[crc_end]);
+			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,3)&0xffff);
+			if(cal_val == receive_val)
+			{
+				memmove(&txdata[12], &cprxBuf[2], sizeof(uint8_t)*10); 
+			}			
+			else if( cal_val != receive_val)
+			{
+ 				wdg_cnt ++;
+				continue;
+			}
 		}
-	*/
-		// Imu_databuff -> 32uart data set
-		 memset(crcArray_send,0,8*sizeof(crcArray_send[0]));
-		 memcpy(&crcArray_send[0], &txdata[2] , 24); 
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,6)& 0xffff;
+
+		// Imu_databuff  -> 32uart data set
+		 memset(crcArray_send,0,9*sizeof(crcArray_send[0]));
+		 memcpy(&crcArray_send[0], &txdata[2] , 20); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,5)& 0xffff;
 	
 		txdata[22] = crcval >> 8; 
 		txdata[23] = crcval & 0xff;
@@ -745,17 +770,8 @@ void StartDefaultTask(void const * argument)
 
 		//	DATA SAVE TO LEFT LEG	
 //			if(datasave_flg){
-//			for(int i =0; i<24; i++) {
-//			f_printf(&SDFile, "%02x", cp_rxBuf_[i]);
-//			}
-//			f_printf(&SDFile, "\n");
-//			for(int i =0; i<24; i++) {
-//			f_printf(&SDFile, "%02x", rxBuf_[i]);
-//			}
-//			f_printf(&SDFile, "\n");
-//			
-//			for(int i =0; i<24; i++) {
-//			f_printf(&SDFile, "%02x", rxBuf[i]);
+//			for(int i =0; i<26; i++) {
+//			f_printf(&SDFile, "%02x", txdata[i]);
 //			}
 //			f_printf(&SDFile, "\n");
 //			}
@@ -763,11 +779,13 @@ void StartDefaultTask(void const * argument)
 //			{
 //			f_close(&SDFile);
 //			}
+			
+			if(datatest_flg){
+				datatest_flg = false;
+				HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+			}
 
-		   if(_1000ms_flg){
-			   _1000ms_flg = false;
-				 HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
-				 HAL_UART_Transmit_IT(&huart1,txdata,26); // 4byte + 18 + 10 byte(insole right)+ CRC 2 : 34 byte				
+			HAL_UART_Transmit_IT(&huart1,txdata,26); //			
 
 			}
 //	TRANSMIT DATA TO LEFT LEG	
@@ -797,17 +815,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		_100ms_tmr++;
 		ms_sv_tmr++;
 
-		if(ms_tmr % 1000 == 0){
-			_1000ms_flg = true;
+ 		if(ms_tmr % 5 == 0){
+			k ++;
+			_10ms_flg = true;
 			ms_tmr = 0;
 		}
-		if(_100ms_tmr % 100 == 0){ // 10 sec
+		if(_100ms_tmr % 1000 == 0){ // watchdog tmr
+			datatest_flg = true;
 			_100ms_tmr = 0;
-			if(!datasave_flg) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
+			if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
+			HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
 		}
 		
-		if(ms_sv_tmr % 20000 == 0){ // 10sec later - date
+		if(ms_sv_tmr % 15000 == 0){ // 10sec later - date
 			datasave_flg = false;
+			
 			ms_sv_tmr = 0;
 		}
 	

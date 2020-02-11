@@ -32,6 +32,16 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+	#define DMA_BUF_SIZE        16      /* DMA circular buffer size in bytes */
+	#define DMA_TIMEOUT_MS      10 
+	typedef struct
+	{
+		volatile uint8_t  flag;     /* Timeout event flag */
+		uint16_t timer;             /* Timeout duration in msec */
+		uint16_t prevCNDTR;         /* Holds previous value of DMA_CNDTR */
+	} DMA_Event_t;
+	
+	
 
 /* USER CODE END Includes */
 

@@ -65,7 +65,9 @@ extern SD_HandleTypeDef hsd;
 extern TIM_HandleTypeDef htim4;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim5;
+extern DMA_Event_t dma_uart_rx;
 
 /* USER CODE BEGIN EV */
 
@@ -210,6 +212,20 @@ void USART1_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+
+  /* USER CODE END USART2_IRQn 1 */
+}
+
+/**
   * @brief This function handles SDIO global interrupt.
   */
 void SDIO_IRQHandler(void)
@@ -233,6 +249,15 @@ void TIM5_IRQHandler(void)
   /* USER CODE END TIM5_IRQn 0 */
   HAL_TIM_IRQHandler(&htim5);
   /* USER CODE BEGIN TIM5_IRQn 1 */
+	     /* DMA timer */
+    if(dma_uart_rx.timer == 1)
+    {
+        /* DMA Timeout event: set Timeout Flag and call DMA Rx Complete Callback */
+        dma_uart_rx.flag = 1;
+        hdma_usart2_rx.XferCpltCallback(&hdma_usart2_rx);
+    }
+    if(dma_uart_rx.timer) { --dma_uart_rx.timer; }    
+	
 
   /* USER CODE END TIM5_IRQn 1 */
 }
