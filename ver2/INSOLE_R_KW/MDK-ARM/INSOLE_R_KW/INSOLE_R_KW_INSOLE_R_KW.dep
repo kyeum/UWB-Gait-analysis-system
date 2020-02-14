@@ -1,8 +1,8 @@
 Dependencies for Project 'INSOLE_R_KW', Target 'INSOLE_R_KW': (DO NOT MODIFY !)
 CompilerVersion: 5060750::V5.06 update 6 (build 750)::ARMCC
 F (startup_stm32f411xe.s)(0x5E40CFE0)(--cpu Cortex-M4.fp.sp --pd "__EVAL SETA 1" -g --apcs=interwork --pd "__MICROLIB SETA 1" -I ..\\Inc-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include--pd "__UVISION_VERSION SETA 529" --pd "_RTE_ SETA 1" --pd "STM32F411xE SETA 1"--list startup_stm32f411xe.lst --xref -o insole_r_kw\startup_stm32f411xe.o --depend insole_r_kw\startup_stm32f411xe.d)
-F (../Src/main.c)(0x5E42866C)(--c99 -c --cpu Cortex-M4.fp.sp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FatFs/src -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE-o insole_r_kw\main.o --omf_browse insole_r_kw\main.crf --depend insole_r_kw\main.d)
-I (../Inc/main.h)(0x5E4262FB)
+F (../Src/main.c)(0x5E43B0B9)(--c99 -c --cpu Cortex-M4.fp.sp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FatFs/src -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE-o insole_r_kw\main.o --omf_browse insole_r_kw\main.crf --depend insole_r_kw\main.d)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -109,7 +109,7 @@ I (../Middlewares/Third_Party/FatFs/src/diskio.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/integer.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/ff.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -167,7 +167,7 @@ I (../Inc/fatfs.h)(0x5E40CFDD)
 I (../Middlewares/Third_Party/FatFs/src/ff.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/integer.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -234,7 +234,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/task.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/list.h)(0x5E328E8B)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -268,8 +268,8 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_sdmmc.h)(0x5E328EBC)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x5E328EBC)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x5E328EBC)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x5E328EBC)
-F (../Src/stm32f4xx_it.c)(0x5E426214)(--c99 -c --cpu Cortex-M4.fp.sp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FatFs/src -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE-o insole_r_kw\stm32f4xx_it.o --omf_browse insole_r_kw\stm32f4xx_it.crf --depend insole_r_kw\stm32f4xx_it.d)
-I (../Inc/main.h)(0x5E4262FB)
+F (../Src/stm32f4xx_it.c)(0x5E435529)(--c99 -c --cpu Cortex-M4.fp.sp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FatFs/src -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE-o insole_r_kw\stm32f4xx_it.o --omf_browse insole_r_kw\stm32f4xx_it.crf --depend insole_r_kw\stm32f4xx_it.d)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -316,7 +316,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h)(0x5E328E8B
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/task.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/list.h)(0x5E328E8B)
 F (../Src/stm32f4xx_hal_msp.c)(0x5E40CFDE)(--c99 -c --cpu Cortex-M4.fp.sp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FatFs/src -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include-I.\RTE\_INSOLE_R_KW-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\CHKimLab\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.14.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE -DUSE_HAL_DRIVER -DSTM32F411xE-o insole_r_kw\stm32f4xx_hal_msp.o --omf_browse insole_r_kw\stm32f4xx_hal_msp.crf --depend insole_r_kw\stm32f4xx_hal_msp.d)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -1186,7 +1186,7 @@ I (../Middlewares/Third_Party/FatFs/src/integer.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/ff.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -1242,7 +1242,7 @@ F (../Middlewares/Third_Party/FatFs/src/ff.c)(0x5E328E8B)(--c99 -c --cpu Cortex-
 I (../Middlewares/Third_Party/FatFs/src/ff.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/integer.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -1302,7 +1302,7 @@ I (../Middlewares/Third_Party/FatFs/src/diskio.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/integer.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/ff.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)
@@ -1358,7 +1358,7 @@ F (../Middlewares/Third_Party/FatFs/src/option/syscall.c)(0x5E328E8B)(--c99 -c -
 I (../Middlewares/Third_Party/FatFs/src/option/../ff.h)(0x5E328E8B)
 I (../Middlewares/Third_Party/FatFs/src/option/../integer.h)(0x5E328E8B)
 I (../Inc/ffconf.h)(0x5E40CFDC)
-I (../Inc/main.h)(0x5E4262FB)
+I (../Inc/main.h)(0x5E4354F9)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5E328EBC)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E40CFDE)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x5E328EBC)

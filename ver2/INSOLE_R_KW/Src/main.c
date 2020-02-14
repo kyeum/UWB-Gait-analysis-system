@@ -94,18 +94,15 @@ void wdg_activate();
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	//Communication buffers
-	//DMA
-	DMA_Event_t dma_uart_rx = {0,0,DMA_BUF_SIZE};
-	uint8_t dma_rx_buf[DMA_BUF_SIZE];       /* Circular buffer for DMA */
-	uint8_t data[DMA_BUF_SIZE] = {'\0'};    /* Data buffer that contains newly received data */	
+	//DMA comm
 	bool dma_connect = false;
-	//
-	uint8_t txdata[26]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
-	uint8_t rxBuf[16] = {0};
+	bool data_received_dma = true;
+		//
+	uint8_t txdata[26]; 
+	//uint8_t rxBuf[16] = {0};
 	uint8_t rxBuf_[16] = {0};
-	
 	uint8_t rxBuf_crc[16] = {0};
-	uint8_t cp_rxBuf_[16] = {0,};	\
+	//Inturrupt comm
 	uint8_t buff_index = 0;
 	bool received_flag = false;
 	bool received_end = false;
@@ -114,9 +111,9 @@ void wdg_activate();
 	uint16_t adcValArray[5] = {0,};
 
 	//crc
-	uint32_t crcArray[8] = {0,};
-	uint32_t crcArray_send[9] = {0,};
-	uint16_t crcval = 0;
+	uint32_t crcArray[8] = {0,}; // crc for save
+	uint32_t crcArray_send[9] = {0,}; // crc for send
+	uint16_t crcval = 0; // calculate crc data for test
 	
 	//buff calcualtion
 	uint16_t cal_val = 0;
@@ -130,16 +127,18 @@ void wdg_activate();
 	//FILE I/O operation
 	FRESULT res;                                          /* FatFs function common result code */
 	uint32_t byteswritten, bytesread;                     /* File write/read counts */
-	uint8_t wtext[] = "Hello from kyeum!"; 			      /* File write start buffer */
+	uint8_t wtext[] = "Hello from kyeum test"; 			      /* File write start buffer */
 	uint8_t rtext[100];                                   /* File read buffer */
 	
 	FATFS myFATAS;
 	FIL myFILE;
 	UINT testByte; 										  // error detection 
 	bool datasave_flg = true;
-	bool datatest_flg = false;
+	bool ongoing_flg = false;
+	
 	//Timer
 	bool _10ms_flg = false;
+	bool _5ms_flg = false;
 	bool _1000ms_flg = false;
 
 	uint16_t ms_tmr = 0;
@@ -148,23 +147,12 @@ void wdg_activate();
 	
 	//wdg cnt
 	uint8_t wdg_cnt = 0;
+	uint8_t wdg_tmr = 0;
 	
-	#define MAX_DMA_BUFFER_SIZE 16
-
-	//ringbuff
-	uint8_t tail=0;
-	uint8_t uartbuff[MAX_DMA_BUFFER_SIZE];
-	uint8_t uartDMAbuff[MAX_DMA_BUFFER_SIZE];
-
-	
-	uint8_t usartCurIndex = 0;
-	uint8_t usartprevIndex = 0;
-	uint8_t rxlen = 0;
+	//test val
 	uint16_t test_val = 0;
 	uint8_t k = 0;
 
-	bool data_received_dma = true;
-	
 	
 /* USER CODE END 0 */
 
@@ -214,7 +202,7 @@ int main(void)
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+  /* add mutexes, ... */      
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -637,36 +625,38 @@ static void MX_GPIO_Init(void)
   /* Prevent unused argument(s) compilation warning */
   /* NOTE: This function should not be modified, when the callback is needed, 
            the HAL_UART_RxCpltCallback could be implemented in the user file
-   */
-	//add ring buffer
-	// data pacing and save buff to transmit array
+  */
 	if(huart->Instance == USART2){
-				//if(test_val !=0){
 				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
 					dma_connect = true;
 					memcpy(&rxBuf_[0], &rxBuf_crc[0], 16 );
-
 				}
 				else
 				{
 					received_flag = false;
+					dma_connect = false;
 					HAL_DMA_Abort(&hdma_usart2_rx);	
-					
-
 				}
-			//}
 				test_val++;
 	}
+	
+		if(huart->Instance == USART1){
+			//received search : start - start ?
+			// senddata to 
+			uint8_t txdata[30] = {0,}; 
+			
+			// data received -> send
+			HAL_UART_Transmit_IT(&huart2,txdata,30);
+			
+		}
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Prevent unused argument(s) compilation warning */
 	if(huart->Instance == USART2){  
-		
-	//HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14); // 200ms Orange BLINKING
 
 	}
 	/* NOTE: This function should not be modified, when the callback is needed,
@@ -677,6 +667,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 void wdg_activate(){
 	HAL_NVIC_SystemReset();
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -718,21 +709,16 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  if(_10ms_flg){
-		_10ms_flg = false;
-		//if(wdg_cnt > 10) wdg_activate();
+	  if(_5ms_flg){
+		_5ms_flg = false;
 	  
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
 		//Right leg insole
-		char b = k;
 		for(int i =0; i<5; i++){ // right / left -- insole + Imu dataset :
 		char a = i*2;
-		//txdata[2+a] = adcValArray[i] >> 8;  //hi
-		//txdata[3+a] = adcValArray[i] & 0xFF;//lo
-	
-		txdata[2+a] = b;  //hi
-		txdata[3+a] = b;	
+		txdata[2+a] = adcValArray[i] >> 8;  //hi
+		txdata[3+a] = adcValArray[i] & 0xFF;//lo
 		}
 		//Left leg insole from usart
 
@@ -759,8 +745,8 @@ void StartDefaultTask(void const * argument)
 		}
 
 		// Imu_databuff  -> 32uart data set
-		 memset(crcArray_send,0,9*sizeof(crcArray_send[0]));
-		 memcpy(&crcArray_send[0], &txdata[2] , 20); 
+		memset(crcArray_send,0,9*sizeof(crcArray_send[0]));
+		memcpy(&crcArray_send[0], &txdata[2] , 20); 
 		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,5)& 0xffff;
 	
 		txdata[22] = crcval >> 8; 
@@ -768,26 +754,28 @@ void StartDefaultTask(void const * argument)
 		txdata[24] = 0xFF;
 		txdata[25] = 0xFE;
 
-		//	DATA SAVE TO LEFT LEG	
-//			if(datasave_flg){
-//			for(int i =0; i<26; i++) {
-//			f_printf(&SDFile, "%02x", txdata[i]);
-//			}
-//			f_printf(&SDFile, "\n");
-//			}
-//			else
-//			{
-//			f_close(&SDFile);
-//			}
+		//	DATA SAVE TO LEFT LEG
+			//5ms data save
+			if(datasave_flg){
+			for(int i =0; i<26; i++) {
+			f_printf(&SDFile, "%02x", txdata[i]);
+			}
+			f_printf(&SDFile, "\n");
+			}
+			else
+			{
+			f_close(&SDFile);
+			}
+			// received data from pc
 			
-			if(datatest_flg){
-				datatest_flg = false;
-				HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+			if(ongoing_flg){ // watchdog timer 100ms check timeout
+				ongoing_flg = false;
+				wdg_tmr ++;
+				if(wdg_tmr%10 == 0) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
+				if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
 			}
-
 			HAL_UART_Transmit_IT(&huart1,txdata,26); //			
-
-			}
+		}
 //	TRANSMIT DATA TO LEFT LEG	
 	}
   /* USER CODE END 5 */ 
@@ -814,26 +802,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		ms_tmr ++;
 		_100ms_tmr++;
 		ms_sv_tmr++;
-
+		
  		if(ms_tmr % 5 == 0){
-			k ++;
-			_10ms_flg = true;
+			_5ms_flg = true;
 			ms_tmr = 0;
 		}
-		if(_100ms_tmr % 1000 == 0){ // watchdog tmr
-			datatest_flg = true;
+		if(_100ms_tmr % 100 == 0){ // watchdog tmr
+			ongoing_flg = true;
 			_100ms_tmr = 0;
-			if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
-			HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
 		}
 		
-		if(ms_sv_tmr % 15000 == 0){ // 10sec later - date
-			datasave_flg = false;
-			
+		if(ms_sv_tmr % 10000 == 0){ // 10sec later - data save -> will change mode in the pc data
+			datasave_flg = false;		
 			ms_sv_tmr = 0;
 		}
-	
-	// save data 10sec	
 	}
   /* USER CODE END Callback 1 */
 }

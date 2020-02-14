@@ -206,6 +206,7 @@ void initAK8963(void);
 	uint16_t ms_sv_tmr = 0;
 	bool _100ms_flg = false;
 	bool _10ms_flg = false;
+	bool dma_connect = false;
 	
 	uint16_t test_val = 0;
 	
@@ -629,26 +630,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
- void initAK8963()
-{
-  // First extract the factory calibration for each magnetometer axis
-  uint8_t rawData[3];  // x/y/z gyro calibration data stored here
-  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
-  HAL_Delay(100);	
-  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
-  HAL_Delay(100);	
-//  readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);  // Read the x-, y-, and z-axis calibration values
-//  destination[0] =  (float)(rawData[0] - 128)/256.0f + 1.0f;   // Return x-axis sensitivity adjustment values, etc.
-//  destination[1] =  (float)(rawData[1] - 128)/256.0f + 1.0f;  
-//  destination[2] =  (float)(rawData[2] - 128)/256.0f + 1.0f; 
-  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
-  HAL_Delay(100);	
-  // Configure the magnetometer for continuous read and highest resolution
-  // set Mscale bit 4 to 1 (0) to enable 16 (14) bit resolution in CNTL register,
-  // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
-  writeByte(AK8963_ADDRESS, AK8963_CNTL, Mscale << 4 | Mmode); // Set magnetometer data resolution and sample ODR
-  HAL_Delay(100);	
-}
 
 void writeByte(uint8_t address, uint8_t subAddress, uint8_t data)
 {
@@ -720,6 +701,27 @@ void  readMagData(int8_t * destination)
   }
 }
 
+ void initAK8963()
+{
+  // First extract the factory calibration for each magnetometer axis
+  uint8_t rawData[3];  // x/y/z gyro calibration data stored here
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
+  HAL_Delay(100);	
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x0F); // Enter Fuse ROM access mode
+  HAL_Delay(100);	
+//  readBytes(AK8963_ADDRESS, AK8963_ASAX, 3, &rawData[0]);  // Read the x-, y-, and z-axis calibration values
+//  destination[0] =  (float)(rawData[0] - 128)/256.0f + 1.0f;   // Return x-axis sensitivity adjustment values, etc.
+//  destination[1] =  (float)(rawData[1] - 128)/256.0f + 1.0f;  
+//  destination[2] =  (float)(rawData[2] - 128)/256.0f + 1.0f; 
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, 0x00); // Power down magnetometer  
+  HAL_Delay(100);	
+  // Configure the magnetometer for continuous read and highest resolution
+  // set Mscale bit 4 to 1 (0) to enable 16 (14) bit resolution in CNTL register,
+  // and enable continuous mode data acquisition Mmode (bits [3:0]), 0010 for 8 Hz and 0110 for 100 Hz sample rates
+  writeByte(AK8963_ADDRESS, AK8963_CNTL, Mscale << 4 | Mmode); // Set magnetometer data resolution and sample ODR
+  HAL_Delay(100);	
+}
+
 void initMPU9250()
 {  
 // Initialize MPU9250 device
@@ -780,7 +782,7 @@ void initMPU9250()
 
   // Configure Interrupts and Bypass Enable
   // Set interrupt pin active high, push-pull, and clear on read of INT_STATUS, enable I2C_BYPASS_EN so additional chips 
-  // can join the I2C bus and all can be controlled by the Arduino as master
+  // can join the I2C bus and all can be controlled as master
    writeByte(MPU9250_ADDRESS, INT_PIN_CFG, 0x22);    
      HAL_Delay(100); // Delay 100 ms for PLL to get established on x-axis gyro; should check for PLL ready interrupt  
 
@@ -810,20 +812,21 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	//add ring buffer
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
-		
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
-
-					if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF)
-					{
-						memcpy(&rxBuf_[0], &rxBuf_crc[0], 26 );
-						received_flag = true;
-					}
-					else
-					{
-						received_flag = false;
-						wdg_activate();
-					}
+				//if(test_val !=0){
+				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
+					received_flag = true;
+					dma_connect = true;
+					memcpy(&rxBuf_[0], &rxBuf_crc[0], 26 );
+				}
+				else
+				{
+					received_flag = false;
+					HAL_DMA_Abort(&hdma_usart2_rx);	
+				}
+				test_val++;
 	}
+					
 }
 
 
@@ -882,7 +885,6 @@ void StartDefaultTask(void const * argument)
 			uint8_t cprxBuf[26];
 			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*26); 
 			received_flag = false;
-
 			memset(crcArray,0,8*sizeof(crcArray[0]));
 			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*20); 
 			char crc_begin = 22; //MLSB
@@ -898,7 +900,8 @@ void StartDefaultTask(void const * argument)
 				wdg_cnt ++;
 				continue;
 			}
-		}	
+		}
+		
 		readAccelData(&acc_[0]);
 		readMagData(&mag_[0]);
 		readGyroData(&gy_[0]); 
@@ -912,7 +915,13 @@ void StartDefaultTask(void const * argument)
 		txdata[2] = send_10ms_tmr >> 8;
 		txdata[3] = send_10ms_tmr & 0xff;	
 		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
-		memcpy(&crcArray_send[0], &txdata[2] , 38); 
+		
+		for(int i =0; i <10; i++)
+		{
+			char c = 4*i;
+			crcArray_send[i] = ((uint32_t)txdata[c+2] << 24) | ((uint32_t)txdata[c+3] << 16) | ((uint32_t)txdata[c+4] << 8) | ((uint32_t)txdata[c+5]);
+		}
+		
 		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,10)& 0xffff;
 	
 		txdata[42] = crcval >> 8; 
@@ -972,8 +981,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			_10ms_tmr = 0;
 		}
 		
-		if(ms_sv_tmr % 10000 == 0){ // 10sec later - date
+		if(ms_sv_tmr % 100 == 0){ // 10sec later - date
 			datasave_flg = false;
+		if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
+			HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
 			ms_sv_tmr = 0;
 		}
 		

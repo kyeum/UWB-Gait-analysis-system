@@ -4,7 +4,7 @@
 DATASET :
 INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 16BYTE
 INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 26BYTE
-IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
+IMU 		 : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
 
 */
 
@@ -97,6 +97,9 @@ void StartDefaultTask(void const * argument);
 	//Communication buffers
 	uint8_t txdata[16]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
 
+	// pc recieve buffer
+	
+	uint8_t Rxbuf[10] = {0,};
 	//ADC dma convert
 	uint16_t adcValArray[5] = {0,};
 	
@@ -175,7 +178,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
-  
+  HAL_UART_Receive_IT(&huart2, (uint8_t *)Rxbuf, 10); //interrupt mode only in the mcu data
+
   
   
   /* USER CODE END 2 */
@@ -600,10 +604,16 @@ static void MX_GPIO_Init(void)
            the HAL_UART_RxCpltCallback could be implemented in the user file
    */
 	//add ring buffer
-	// data pacing and save buff to transmit array
-	if(huart->Instance == USART2){
-			
+	// data pacing and save buff to transmit array          
+	if(huart->Instance == USART1){
+			//received search : start - start ?
+			// senddata to 
+			uint8_t txdata[30] = {0,}; 
+			//data parse and use
+			// data save, data unsave mode
 	}
+	//HAL_UART_Receive_IT(&huart2, (uint8_t *)Rxbuf, 10); //interrupt mode only in the mcu data
+
 }
  void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -665,10 +675,8 @@ void StartDefaultTask(void const * argument)
 	
 		for(int i =0; i<5; i++){
 		char a = i*2;
-		//txdata[2+a] = adcValArray[i] >> 8;  //hi
-		//txdata[3+a] = adcValArray[i] & 0xFF;//lo
-		txdata[2+a] = k;
-		txdata[3+a] = k ;	
+		txdata[2+a] = adcValArray[i] >> 8;  //hi
+		txdata[3+a] = adcValArray[i] & 0xFF;//lo	
 		}
 		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
 		memcpy(&crcArray_send[0],&txdata[2] , 10); 
