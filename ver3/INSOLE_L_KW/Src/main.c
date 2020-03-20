@@ -614,11 +614,23 @@ static void MX_GPIO_Init(void)
 	// data pacing and save buff to transmit array          
 	if(huart->Instance == USART6){
 			//received search : start - start ?
-			// senddata to 
-			uint8_t txdata[30] = {0,}; 
-			// RX power , 1st length 
-			//data parse and use
-			// data save, data unsave mode
+
+		// data parse
+		// dist data, power data
+		
+		if(Rxbuf_ino[0] == '*'){
+			// data parse
+
+				}
+				else
+				{
+					HAL_DMA_Abort(&hdma_usart6_rx);	
+				}
+		
+		
+		
+		
+		
 	}
 
 }
