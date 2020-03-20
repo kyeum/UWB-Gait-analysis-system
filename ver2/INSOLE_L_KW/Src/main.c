@@ -100,6 +100,10 @@ void StartDefaultTask(void const * argument);
 	// pc recieve buffer
 	
 	uint8_t Rxbuf[10] = {0,};
+	
+	//arduino recieve buffer
+	
+	uint8_t Rxbuf_ino[10] = {0,};
 	//ADC dma convert
 	uint16_t adcValArray[5] = {0,};
 	
@@ -178,7 +182,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
-  HAL_UART_Receive_IT(&huart2, (uint8_t *)Rxbuf, 10); //interrupt mode only in the mcu data
+  HAL_UART_Receive_IT(&huart6, (uint8_t *)Rxbuf_ino, 10); //interrupt mode only in the mcu data
 
   
   
@@ -612,8 +616,15 @@ static void MX_GPIO_Init(void)
 			//data parse and use
 			// data save, data unsave mode
 	}
-	//HAL_UART_Receive_IT(&huart2, (uint8_t *)Rxbuf, 10); //interrupt mode only in the mcu data
-
+	
+	if(huart->Instance == USART6){
+			//received search : start - start ?
+			// senddata to 
+			//data parse and use
+			// data save, data unsave mode
+		HAL_UART_Receive_IT(&huart6, (uint8_t *)Rxbuf_ino, 10); //interrupt mode only in the mcu data
+	}
+	 
 }
  void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -639,29 +650,29 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void const * argument)
 {
   /* init code for FATFS */
-  MX_FATFS_Init();
+  //MX_FATFS_Init();
   /* USER CODE BEGIN 5 */
-	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+//	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
-	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-	}
-	else{
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		}
-	
+//	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//	}
+//	else{
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		}
+//	
 	
 	
   /* Infinite loop */
@@ -689,17 +700,17 @@ void StartDefaultTask(void const * argument)
 	
 	//TRANSMIT DATA TO PC
 		//	DATA SAVE TO LEFT LEG	
-			if(datasave_flg){
-			for(int i =0; i<16; i++) {
-			f_printf(&SDFile, "%02x", txdata[i]);
-			}
-			f_printf(&SDFile, "\n");
-			}
-			else
-			{
-			f_close(&SDFile);
-			}
-			
+//			if(datasave_flg){
+//			for(int i =0; i<16; i++) {
+//			f_printf(&SDFile, "%02x", txdata[i]);
+//			}
+//			f_printf(&SDFile, "\n");
+//			}
+//			else
+//			{
+//			f_close(&SDFile);
+//			}
+//			
 			HAL_UART_Transmit_IT(&huart1,txdata,16);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
 			
 			if(datatest_flg) // 1sec flash out

@@ -97,15 +97,22 @@ void wdg_activate();
 	//DMA comm
 	bool dma_connect = false;
 	bool data_received_dma = true;
-		//
+	
 	uint8_t txdata[26]; 
-	//uint8_t rxBuf[16] = {0};
 	uint8_t rxBuf_[16] = {0};
 	uint8_t rxBuf_crc[16] = {0};
+	uint8_t rxBuf_ino[12] = {0}; //stx(*)  + left(4), right(4), rxpower(2) + etx(;)
+
 	//Inturrupt comm
 	uint8_t buff_index = 0;
 	bool received_flag = false;
 	bool received_end = false;
+	
+	//UWB comm
+	uint8_t uwb_data[256] = {0,};
+
+	
+	
 	
 	//ADC DMA
 	uint16_t adcValArray[5] = {0,};
@@ -197,6 +204,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 16); //interrupt mode only in the mcu data
+  HAL_UART_Receive_IT(&huart6, (uint8_t *)rxBuf_ino, 12); //interrupt mode for arduino
+
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -626,7 +635,8 @@ static void MX_GPIO_Init(void)
   /* NOTE: This function should not be modified, when the callback is needed, 
            the HAL_UART_RxCpltCallback could be implemented in the user file
   */
-	if(huart->Instance == USART2){
+		//from 
+		if(huart->Instance == USART2){
 				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_12);
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
@@ -640,17 +650,23 @@ static void MX_GPIO_Init(void)
 					HAL_DMA_Abort(&hdma_usart2_rx);	
 				}
 				test_val++;
-	}
-	
+		}
+		//from pc
 		if(huart->Instance == USART1){
 			//received search : start - start ?
-			// senddata to 
 			uint8_t txdata[30] = {0,}; 
-			
-			// data received -> send
 			HAL_UART_Transmit_IT(&huart2,txdata,30);
-			
 		}
+			// from arduino
+		if(huart->Instance == USART6){
+			
+			//memcpy(rxBuf_ino, tmp_txdata);
+			
+			//uint8_t recp_txdata[1];
+			//recp_txdata[0] = ';';
+			//HAL_UART_Transmit_IT(&huart6,recp_txdata,1);
+			HAL_UART_Receive_IT(&huart6, (uint8_t *)rxBuf_ino, 12); //interrupt mode for arduino
+		}		
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
