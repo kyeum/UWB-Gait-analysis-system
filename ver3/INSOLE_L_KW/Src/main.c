@@ -96,18 +96,21 @@ void StartDefaultTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	//Communication buffers
-	uint8_t txdata[16]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
+	uint8_t txdata[20]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
 
 	// pc recieve buffer
 	
 	uint8_t Rxbuf[10] = {0,};
-	uint8_t Rxbuf_ino[10] = {0,};
+	uint8_t Rxbuf_ino[8] = {0,};
+	uint8_t Rxbuf_ino_p[8] = {0,};
+
 
 	//ADC dma convert
 	uint16_t adcValArray[5] = {0,};
 	
 	//crcval
 	uint32_t crcArray_send[10] = {0,};
+	
 	uint16_t crcval = 0;
 
 	//SD card variables 
@@ -138,6 +141,7 @@ void StartDefaultTask(void const * argument);
 	bool datatrans_flg = false;
 	bool datatest_flg = false;
 
+	bool usart6_dma = true;
 	
 /* USER CODE END 0 */
 
@@ -181,7 +185,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
-  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 10); //interrupt mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode only in the mcu data
 
   
   
@@ -490,7 +494,7 @@ static void MX_USART1_UART_Init(void)
 /**
   * @brief USART2 Initialization Function
   * @param None
-  * @retval None
+  * @retval None 
   */
 static void MX_USART2_UART_Init(void)
 {
@@ -613,26 +617,33 @@ static void MX_GPIO_Init(void)
 	//add ring buffer
 	// data pacing and save buff to transmit array          
 	if(huart->Instance == USART6){
-			//received search : start - start ?
-
+		//received search : start - start ?
 		// data parse
 		// dist data, power data
-		
-		if(Rxbuf_ino[0] == '*'){
-			// data parse
-
-				}
-				else
+		char rxlen = sizeof(Rxbuf_ino);
+		for(char i =0; i < rxlen; i++)
+		{
+			char stx = i;
+			char stx_2 = (i+1)%rxlen;
+			char etx = (i + rxlen - 1)%rxlen;
+			char etx_2 = (i + rxlen - 2)%rxlen;
+			if(Rxbuf_ino[stx] == 0xFF && Rxbuf_ino[(stx_2)] == 0xFF)
+			{
+				if(Rxbuf_ino[etx] == 0xFE && Rxbuf_ino[(etx_2)] == 0xFF)
 				{
-					HAL_DMA_Abort(&hdma_usart6_rx);	
+					for(char j =0; j < rxlen; j++){
+						char k = (stx + j)%rxlen;
+						Rxbuf_ino_p[j] = Rxbuf_ino[k]; // data parse AND SAVE CUR
+					}
+
+				break;
 				}
-		
-		
+			}
+		}
 		
 		
 		
 	}
-
 }
  void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -658,28 +669,28 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void const * argument)
 {
   /* init code for FATFS */
-  MX_FATFS_Init();
-  /* USER CODE BEGIN 5 */
-	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+//  MX_FATFS_Init();
+//  /* USER CODE BEGIN 5 */
+//	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
-	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-	}
-	else{
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		}
+//	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//	}
+//	else{
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		}
 	
 	
 	
@@ -697,29 +708,35 @@ void StartDefaultTask(void const * argument)
 		txdata[2+a] = adcValArray[i] >> 8;  //hi
 		txdata[3+a] = adcValArray[i] & 0xFF;//lo	
 		}
-		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
-		memcpy(&crcArray_send[0],&txdata[2] , 10); 
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,3)& 0xffff;
-		 
-		txdata[12] = crcval >> 8; 
-		txdata[13] = crcval & 0xff;
-		txdata[14] = 0xFF;
-		txdata[15] = 0xFE;
+		
+		for(int i =0; i < 4; i ++){
+		txdata [12+i]  = Rxbuf_ino_p[2+i]; // signed short uwb data to txdata
+		}
+		
+		memset(crcArray_send,0,10*sizeof(crcArray_send[0])); // 
+		memcpy(&crcArray_send[0],&txdata[2] , 14); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,4)& 0xffff;
+		
+		txdata[16] = crcval >> 8; 
+		txdata[17] = crcval & 0xff;
+		txdata[18] = 0xFF;
+		txdata[19] = 0xFE;
 	
 	//TRANSMIT DATA TO PC
 		//	DATA SAVE TO LEFT LEG	
-			if(datasave_flg){
-			for(int i =0; i<16; i++) {
-			f_printf(&SDFile, "%02x", txdata[i]);
-			}
-			f_printf(&SDFile, "\n");
-			}
-			else
-			{
-			f_close(&SDFile);
-			}
+//			if(datasave_flg){
+//			for(int i =0; i<16; i++) {
+//			f_printf(&SDFile, "%02x", txdata[i]);
+//			}
+//			f_printf(&SDFile, "\n");
+//			}
+//			else
+//			{
+//			f_close(&SDFile);
+//			}
 			
-			HAL_UART_Transmit_IT(&huart1,txdata,16);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
+			
+			HAL_UART_Transmit_IT(&huart1,txdata,20);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
 			
 			if(datatest_flg) // 1sec flash out
 			{

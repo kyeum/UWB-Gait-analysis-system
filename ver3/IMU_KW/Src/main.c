@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /*Definition in INSOLE_R_KR
 DATASET :
-INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 16BYTE
-INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 26BYTE
-IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
+INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 20BYTE
+INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 34BYTE
+IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 54BYTE
 */
 /**
   ******************************************************************************
@@ -161,10 +161,10 @@ void initAK8963(void);
 	
 	// Communication
 	bool received_flag = false;
-	uint8_t txdata[46];
-	uint8_t rxBuf[26];
-	uint8_t rxBuf_[26];
-	uint8_t rxBuf_crc[26];
+	uint8_t txdata[54];
+	uint8_t rxBuf[34];
+	uint8_t rxBuf_[34];
+	uint8_t rxBuf_crc[34];
 
 	uint8_t i2cBuf[7];
 	uint8_t Imu_dataBuf[18] = {0,};\
@@ -174,7 +174,7 @@ void initAK8963(void);
 		
 	//crc
 	uint32_t crcArray[8] = {0,};
-	uint32_t crcArray_send[10] = {0,};
+	uint32_t crcArray_send[13] = {0,};
 
 	uint16_t crcval = 0;
 	
@@ -251,7 +251,7 @@ int main(void)
   MX_CRC_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
+	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 34); //interrupt mode only in the mcu data
 		HAL_TIM_Base_Start_IT(&htim4);
 	
 	initMPU9250();
@@ -817,7 +817,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
 					dma_connect = true;
-					memcpy(&rxBuf_[0], &rxBuf_crc[0], 26 );
+					memcpy(&rxBuf_[0], &rxBuf_crc[0], 34 );
 				}
 				else
 				{
@@ -853,26 +853,26 @@ void StartDefaultTask(void const * argument)
   MX_FATFS_Init();
 	
   /* USER CODE BEGIN 5 */
-	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+//	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
-	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(500);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-	}
-	else{
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		osDelay(2000);
-		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-		}
+//	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(500);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//	}
+//	else{
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		osDelay(2000);
+//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+//		}
 
 
   /* Infinite loop */
@@ -882,18 +882,18 @@ void StartDefaultTask(void const * argument)
 		_10ms_flg = false;
 
 		if(received_flag) { 
-			uint8_t cprxBuf[26];
-			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*26); 
+			uint8_t cprxBuf[34];
+			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*34); 
 			received_flag = false;
 			memset(crcArray,0,8*sizeof(crcArray[0]));
-			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*20); 
-			char crc_begin = 22; //MLSB
-			char crc_end = 23;   //LLSB	
+			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*28); 
+			char crc_begin = 30; //MLSB 32 = FF 33 = FE c
+			char crc_end = 31;   //LLSB	
 			receive_val = (int16_t)(((int16_t)cprxBuf[crc_begin] << 8) | cprxBuf[crc_end]);
-			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
+			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,7)&0xffff);
 			if(cal_val == receive_val)
 			{
-				memmove(&txdata[4], &cprxBuf[2], sizeof(uint8_t)*20); 
+				memmove(&txdata[4], &cprxBuf[2], sizeof(uint8_t)*28); 
 			}			
 			else
 			{
@@ -914,22 +914,22 @@ void StartDefaultTask(void const * argument)
 		txdata[1] = 0xFF;
 		txdata[2] = send_10ms_tmr >> 8;
 		txdata[3] = send_10ms_tmr & 0xff;	
-		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
-		
-		for(int i =0; i <10; i++)
+		memset(crcArray_send,0,12*sizeof(crcArray_send[0]));
+		//50byte crc
+		for(int i =0; i <13; i++)
 		{
 			char c = 4*i;
 			crcArray_send[i] = ((uint32_t)txdata[c+2] << 24) | ((uint32_t)txdata[c+3] << 16) | ((uint32_t)txdata[c+4] << 8) | ((uint32_t)txdata[c+5]);
 		}
 		
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,10)& 0xffff;
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,13)& 0xffff;
 	
-		txdata[42] = crcval >> 8; 
-		txdata[43] = crcval & 0xff;
-		txdata[44] = 0xFF;
-		txdata[45] = 0xFE;
+		txdata[50] = crcval >> 8; 
+		txdata[51] = crcval & 0xff;
+		txdata[52] = 0xFF;
+		txdata[53] = 0xFE;
 	
-	 HAL_UART_Transmit_IT(&huart1,txdata,46);
+		HAL_UART_Transmit_IT(&huart1,txdata,54);
 	}
   }
   /* USER CODE END 5 */ 
@@ -983,8 +983,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		
 		if(ms_sv_tmr % 100 == 0){ // 10sec later - date
 			datasave_flg = false;
-		if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
-			HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 26); //interrupt mode only in the mcu data
+		if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 34); //interrupt mode only in the mcu data
 			ms_sv_tmr = 0;
 		}
 		

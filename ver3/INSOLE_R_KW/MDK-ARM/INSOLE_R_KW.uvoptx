@@ -173,7 +173,7 @@
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>txdata</ItemText>
+          <ItemText>txdata,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>5</count>
