@@ -1,8 +1,8 @@
 /* USER CODE BEGIN Header */
 /*Definition in INSOLE_R_KR
 DATASET :
-INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 20BYTE
-INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 34BYTE
+INSOLE_L : 10BYTE(FSR) + 4BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 20BYTE
+INSOLE_R : 20BYTE(FSR) + 8BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC)= 34BYTE
 IMU 		 : 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 54BYTE
 */
 /**
@@ -906,9 +906,9 @@ void StartDefaultTask(void const * argument)
 		readMagData(&mag_[0]);
 		readGyroData(&gy_[0]); 
 	
-		memmove(&txdata[24], &acc_[0],6); 
-		memmove(&txdata[30], &mag_[0],6); 
-		memmove(&txdata[36], &gy_[0],6); 
+		memmove(&txdata[32], &acc_[0],6); 
+		memmove(&txdata[38], &mag_[0],6); 
+		memmove(&txdata[44], &gy_[0],6); 
 
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;

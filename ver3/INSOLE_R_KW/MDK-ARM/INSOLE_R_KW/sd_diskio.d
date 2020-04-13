@@ -1,6 +1,4 @@
 insole_r_kw\sd_diskio.o: ../Src/sd_diskio.c
-insole_r_kw\sd_diskio.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
-insole_r_kw\sd_diskio.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FatFs/src/integer.h
@@ -58,5 +56,6 @@ insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/time
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 insole_r_kw\sd_diskio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-insole_r_kw\sd_diskio.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 insole_r_kw\sd_diskio.o: ../Inc/sd_diskio.h
+insole_r_kw\sd_diskio.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+insole_r_kw\sd_diskio.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h

@@ -54,6 +54,5 @@ insole_r_kw\ff.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 insole_r_kw\ff.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 insole_r_kw\ff.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 insole_r_kw\ff.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-insole_r_kw\ff.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 insole_r_kw\ff.o: ..\Middlewares\Third_Party\FatFs\src\diskio.h
 insole_r_kw\ff.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h

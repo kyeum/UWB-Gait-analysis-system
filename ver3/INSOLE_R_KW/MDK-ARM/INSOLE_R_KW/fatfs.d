@@ -55,7 +55,6 @@ insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-insole_r_kw\fatfs.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 insole_r_kw\fatfs.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 insole_r_kw\fatfs.o: ../Inc/sd_diskio.h

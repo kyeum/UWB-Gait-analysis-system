@@ -67,6 +67,7 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart2_rx;
+DMA_HandleTypeDef hdma_usart6_rx;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
@@ -168,7 +169,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
-  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -196,10 +196,11 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 20); //interrupt mode only in the mcu data
-  HAL_UART_Receive_IT(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode for arduino
+  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode for arduino
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -231,9 +232,8 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
-  
+ 
   /* We should never get here as control is now taken by the scheduler */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -587,6 +587,9 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream1_IRQn);
   /* DMA2_Stream3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
@@ -676,7 +679,7 @@ static void MX_GPIO_Init(void)
 						}
 					}
 				}
-	
+		HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8);
 			}	
 }
 
@@ -706,12 +709,6 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-    
-    
-                 
-  /* init code for FATFS */
-  MX_FATFS_Init();
-
   /* USER CODE BEGIN 5 */
 	//sd
 //	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
@@ -812,7 +809,7 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */ 
 }
 
-/**
+ /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM5 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment

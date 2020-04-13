@@ -56,7 +56,6 @@ insole_r_kw\main.o: ../Middlewares/Third_Party/FatFs/src/integer.h
 insole_r_kw\main.o: ../Inc/ffconf.h
 insole_r_kw\main.o: ../Inc/bsp_driver_sd.h
 insole_r_kw\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-insole_r_kw\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 insole_r_kw\main.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 insole_r_kw\main.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 insole_r_kw\main.o: ../Inc/sd_diskio.h

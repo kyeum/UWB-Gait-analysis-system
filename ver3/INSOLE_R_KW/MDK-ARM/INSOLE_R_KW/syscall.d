@@ -54,4 +54,3 @@ insole_r_kw\syscall.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers
 insole_r_kw\syscall.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 insole_r_kw\syscall.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 insole_r_kw\syscall.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-insole_r_kw\syscall.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
