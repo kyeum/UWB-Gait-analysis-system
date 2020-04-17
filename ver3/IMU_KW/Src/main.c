@@ -174,7 +174,7 @@ void initAK8963(void);
 		
 	//crc
 	uint32_t crcArray[8] = {0,};
-	uint32_t crcArray_send[13] = {0,};
+	uint32_t crcArray_send[12] = {0,};
 
 	uint16_t crcval = 0;
 	
@@ -916,13 +916,13 @@ void StartDefaultTask(void const * argument)
 		txdata[3] = send_10ms_tmr & 0xff;	
 		memset(crcArray_send,0,12*sizeof(crcArray_send[0]));
 		//50byte crc
-		for(int i =0; i <13; i++)
+		for(int i =0; i <12; i++)
 		{
 			char c = 4*i;
 			crcArray_send[i] = ((uint32_t)txdata[c+2] << 24) | ((uint32_t)txdata[c+3] << 16) | ((uint32_t)txdata[c+4] << 8) | ((uint32_t)txdata[c+5]);
 		}
 		
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,13)& 0xffff;
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,12)& 0xffff;
 	
 		txdata[50] = crcval >> 8; 
 		txdata[51] = crcval & 0xff;
