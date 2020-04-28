@@ -109,8 +109,6 @@ UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart2_rx;
 
 osThreadId defaultTaskHandle;
-osThreadId defaultTaskHandle2;
-
 /* USER CODE BEGIN PV */
 	
 	
@@ -128,18 +126,7 @@ static void MX_USART6_UART_Init(void);
 static void MX_CRC_Init(void);
 static void MX_I2C1_Init(void);
 void StartDefaultTask(void const * argument);
-void StartDefaultTask2(void const * argument);
 
-void wdg_activate(void);
-void initMPU9250(void);
-void readMagData(int8_t * destination);
-void readGyroData(int8_t * destination);
-void readAccelData(int8_t * destination);
-void writeByte(uint8_t address, uint8_t subAddress, uint8_t data);
-void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest);
-char readByte(uint8_t address, uint8_t subAddress);
-
-void initAK8963(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -148,6 +135,8 @@ void initAK8963(void);
 /* USER CODE BEGIN 0 */
 	//watchdog
 	
+	void initMPU9250(void);
+	void initAK8963(void);
 	uint8_t wdg_cnt = 0;
 	// I2C and IMU
 	int8_t acc_[6] = {0,};
@@ -277,11 +266,8 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTaskHandle, StartDefaultTask, osPriorityAboveNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTaskHandle), NULL);
-	
-	//osThreadDef(defaultTaskHandle2, StartDefaultTask2, osPriorityNormal, 0, 128);
-  //defaultTaskHandle2 = osThreadCreate(osThread(defaultTaskHandle2), NULL);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -319,11 +305,10 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 100;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
@@ -341,7 +326,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -389,7 +374,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 1000000;
+  hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -454,9 +439,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1000-1;
+  htim4.Init.Prescaler = 5000-1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 100-1;
+  htim4.Init.Period = 10-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -468,7 +453,7 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
   {
@@ -813,7 +798,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	// data pacing and save buff to transmit array
 	if(huart->Instance == USART2){
 				//if(test_val !=0){
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+				//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
 					dma_connect = true;
@@ -845,13 +830,14 @@ void wdg_activate(){
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-
-
 void StartDefaultTask(void const * argument)
-{                
+{
+    
+    
+                 
   /* init code for FATFS */
   MX_FATFS_Init();
-	
+
   /* USER CODE BEGIN 5 */
 //	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
@@ -897,6 +883,8 @@ void StartDefaultTask(void const * argument)
 			}			
 			else
 			{
+				memset(rxBuf_,0,sizeof(uint8_t)*34);
+				// set watch dog -> set 0_ rxBuf_
 				wdg_cnt ++;
 				continue;
 			}
@@ -930,23 +918,8 @@ void StartDefaultTask(void const * argument)
 		txdata[53] = 0xFE;
 	
 		HAL_UART_Transmit_IT(&huart1,txdata,54);
+
 	}
-  }
-  /* USER CODE END 5 */ 
-}
-
-
-
-void StartDefaultTask2(void const * argument)
-{                
-  /* init code for FATFS */
-
-  /* Infinite loop */
-  for(;;)
-  {
-
-	
-
   }
   /* USER CODE END 5 */ 
 }
@@ -974,6 +947,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		ms_sv_tmr ++;
 		if(ms_tmr % 10 == 0){
 			_10ms_flg = true;
+			HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+
 			ms_tmr = 0;
 		}
 		if(_10ms_tmr % 10 == 0){
