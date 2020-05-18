@@ -154,6 +154,8 @@ void StartDefaultTask(void const * argument);
 	uint8_t rxBuf[34];
 	uint8_t rxBuf_[34];
 	uint8_t rxBuf_crc[34];
+	uint8_t rxBuf_sd[9];
+	
 
 	uint8_t i2cBuf[7];
 	uint8_t Imu_dataBuf[18] = {0,};\
@@ -172,6 +174,8 @@ void StartDefaultTask(void const * argument);
 	extern FATFS SDFatFS;    /* File system object for SD logical drive */
 	extern FIL SDFile;       /* File object for SD */
 
+	bool sdcard_save = false;
+	
 	//FILE I/O operation
 
 	FRESULT res;                                          /* FatFs function common result code */
@@ -241,7 +245,8 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 34); //interrupt mode only in the mcu data
-		HAL_TIM_Base_Start_IT(&htim4);
+	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+	HAL_TIM_Base_Start_IT(&htim4);
 	
 	initMPU9250();
 	initAK8963();
@@ -632,7 +637,6 @@ char readByte(uint8_t address, uint8_t subAddress)
 	HAL_I2C_Master_Receive(&hi2c1, address, data, 1, 10); // Data receive sequencing from i2cBuf[1]
     return data[0]; 
 }
-
 void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest)
 {     
     uint8_t data[14];
@@ -644,8 +648,6 @@ void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * des
      dest[ii] = data[ii];
     }
 } 
-
-
 
 void readAccelData(int8_t * destination)
 {
@@ -681,7 +683,6 @@ void  readMagData(int8_t * destination)
 	uint8_t c = rawData[6]; // End data read by reading ST2 register
     if(!(c & 0x08)) { // Check if magnetic sensor overflow set, if not then report data
 		memcpy(&destination[0], &rawData[0],6); 
-		
    }
   }
 }
@@ -811,7 +812,23 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 				}
 				test_val++;
 	}
-					
+	if(huart->Instance == USART1){
+		if(rxBuf_sd[0] == '*' && rxBuf_sd[8] ==';'){
+			if(rxBuf_sd[1] == 's'){
+				char str[6];
+				strncpy(str, (const char*)rxBuf_sd+2,6);
+				if(f_open(&SDFile, str , FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+				//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
+				}
+				sdcard_save = true;
+			}
+			else if(rxBuf_sd[1] == 'e'){
+				f_close(&SDFile);
+				sdcard_save = false;
+			}
+		}
+	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+	}				
 }
 
 
@@ -832,36 +849,13 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-    
-    
-                 
+           
   /* init code for FATFS */
-  MX_FATFS_Init();
+    MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
-//	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
-//	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//	}
-//	else{
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		}
-
-
-  /* Infinite loop */
   for(;;)
   {
 		if(_10ms_flg){
@@ -917,6 +911,14 @@ void StartDefaultTask(void const * argument)
 		txdata[52] = 0xFF;
 		txdata[53] = 0xFE;
 	
+		//sdcard send
+		if(sdcard_save){
+			for(int i =0; i<54; i++) {
+					f_printf(&SDFile, "%02x", txdata[i]);
+				}
+					f_printf(&SDFile, "\n");
+			}
+		
 		HAL_UART_Transmit_IT(&huart1,txdata,54);
 
 	}
