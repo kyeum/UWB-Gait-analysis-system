@@ -104,6 +104,7 @@ void StartDefaultTask(void const * argument);
 	uint8_t Rxbuf_ino[8] = {0,};
 	uint8_t Rxbuf_ino_p[8] = {0,};
 
+	uint8_t rxBuf_sd[9];
 
 	//ADC dma convert
 	uint16_t adcValArray[5] = {0,};
@@ -117,7 +118,11 @@ void StartDefaultTask(void const * argument);
 	extern char SDPath[4];   /* SD logical drive path */
 	extern FATFS SDFatFS;    /* File system object for SD logical drive */
 	extern FIL SDFile;       /* File object for SD */
-
+		
+	bool sdcard_save = false;
+	bool sdcard_save_check = true;
+	bool sdcard_save_ongoing = false;
+	
 	//FILE I/O operation
 	FRESULT res;                                          /* FatFs function common result code */
 	uint32_t byteswritten, bytesread;                     /* File write/read counts */
@@ -140,6 +145,7 @@ void StartDefaultTask(void const * argument);
 	uint8_t k = 0;
 	bool datatrans_flg = false;
 	bool datatest_flg = false;
+	char str_testset[10];
 
 	bool usart6_dma = true;
 	
@@ -184,6 +190,8 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode only in the mcu data
 
@@ -640,10 +648,48 @@ static void MX_GPIO_Init(void)
 				}
 			}
 		}
-		
-		
-		
 	}
+	
+	if(huart->Instance == USART1){
+
+		uint8_t rxBuf_sd_p[9];
+
+		char rxlen = sizeof(rxBuf_sd);
+		for(char i =0; i < rxlen; i++)
+		{
+			char stx = i;
+			char etx = (i + rxlen - 1)%rxlen;
+			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
+			{
+					for(char j =0; j < rxlen; j++){
+						char k = (stx + j)%rxlen;
+						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
+					}
+				break;
+			}
+		}
+
+				if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
+						if(rxBuf_sd_p[1] == 's'){
+							char _txt[] = ".txt";
+							strncpy(str_testset, (const char*)rxBuf_sd+2,6);
+							strcat(str_testset,_txt);			
+						//	sdcard_save = true;
+						HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!	
+						} 
+						else if(rxBuf_sd_p[1] == 'e'){		
+							HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+						//	sdcard_save = false;
+						}
+				}
+				else{
+					memset(rxBuf_sd,0,sizeof(uint8_t)*9);
+				}
+			HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);	
+			
+		}
+	
+	
 }
  void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -671,32 +717,39 @@ void StartDefaultTask(void const * argument)
   /* init code for FATFS */
   MX_FATFS_Init();
   /* USER CODE BEGIN 5 */
+	
 //	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-
 //	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 //	}
-//	else{
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		}
-	
-	
 	
   /* Infinite loop */
   for(;;)
   {  
+	  
+	 	  	if(sdcard_save){
+				if(sdcard_save_check){
+					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+					sdcard_save_check = false;	
+					if(f_open(&SDFile, str_testset , FA_CREATE_ALWAYS | FA_WRITE ) == FR_OK){
+					sdcard_save_ongoing = true;
+					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+					}
+				}
+			}
+		else{
+			if(!sdcard_save_check) {
+				f_close(&SDFile);
+				sdcard_save_check = true;
+				sdcard_save_ongoing = false;
+			}
+		} 
+	  
+	  
+	  
+	  
+	  
+	  
+	  
 	if(_1000ms_flg) // 5ms data send
 		{
 		_1000ms_flg = false;

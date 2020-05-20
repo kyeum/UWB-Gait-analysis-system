@@ -832,19 +832,20 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 			}
 		}
 
-					if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
-						HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-					if(rxBuf_sd_p[1] == 's'){
-						//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-						char _txt[] = ".txt";
-						strncpy(str_testset, (const char*)rxBuf_sd+2,6);
-						strcat(str_testset,_txt);			
-						sdcard_save = true;
-						
-					} 
-					else if(rxBuf_sd_p[1] == 'e'){
-						sdcard_save = false;
-					}
+				if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
+						if(rxBuf_sd_p[1] == 's'){
+							char _txt[] = ".txt";
+							strncpy(str_testset, (const char*)rxBuf_sd+2,6);
+							strcat(str_testset,_txt);			
+						//	sdcard_save = true;
+							
+						HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!
+							
+						} 
+						else if(rxBuf_sd_p[1] == 'e'){		
+							HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+						//	sdcard_save = false;
+						}
 				}
 				else{
 					memset(rxBuf_sd,0,sizeof(uint8_t)*9);
@@ -871,20 +872,22 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-           
+    
+    
+                 
   /* init code for FATFS */
-    MX_FATFS_Init();
+  MX_FATFS_Init();
 
   /* USER CODE BEGIN 5 */
 	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 	
-					if(f_open(&SDFile, "test2.txt" , FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-					test_val = 0;
-				}
-					if(f_open(&SDFile, "test1.txt" , FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-					test_val = 0;
-				}
-				f_close(&SDFile);
+	if(f_open(&SDFile, "test32.txt" , FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+	}
+	
+	
+		f_printf(&SDFile, "%02x", 17);
+		f_close(&SDFile);
+
 	  for(;;)
 	  {
 		if(sdcard_save){
@@ -902,10 +905,9 @@ void StartDefaultTask(void const * argument)
 				f_close(&SDFile);
 				sdcard_save_check = true;
 				sdcard_save_ongoing = false;
-				HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
 			}
 		}
-  	  
+ 	
 		if(_10ms_flg){
 		_10ms_flg = false;
 
@@ -960,14 +962,16 @@ void StartDefaultTask(void const * argument)
 		txdata[53] = 0xFE;
 	
 		//sdcard send
-		if(sdcard_save_ongoing){
+	//	if(sdcard_save_ongoing){
 			for(int i =0; i<15; i++) {
-					//f_printf(&SDFile, "%02x", txdata[i]);
+					f_printf(&SDFile, "%02x", 17);
 				}
-			//		f_printf(&SDFile, "\n");
-			}
-		
-		//HAL_UART_Transmit_IT(&huart1,txdata,54);
+					f_printf(&SDFile, "\n");
+		f_close(&SDFile);
+		//
+		//	}
+
+		HAL_UART_Transmit_IT(&huart1,txdata,54);
 
 	}
 		

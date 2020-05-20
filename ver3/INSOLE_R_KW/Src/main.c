@@ -107,6 +107,8 @@ void StartDefaultTask(void const * argument);
 	bool received_flag = false;
 	bool received_end = false;
 	
+	uint8_t rxBuf_sd[9];
+
 	//UWB comm
 	uint8_t Rxbuf_ino[8] = {0}; //stx(*)  + left(4), right(4), rxpower(2) + etx(;)
 	uint8_t Rxbuf_ino_p[8] = {0}; //stx(*)  + left(4), right(4), rxpower(2) + etx(;)
@@ -140,6 +142,11 @@ void StartDefaultTask(void const * argument);
 	bool datasave_flg = true;
 	bool ongoing_flg = false;
 	
+	
+	bool sdcard_save = false;
+	bool sdcard_save_check = true;
+	bool sdcard_save_ongoing = false;
+	
 	//Timer
 	bool _10ms_flg = false;
 	bool _5ms_flg = false;
@@ -156,6 +163,7 @@ void StartDefaultTask(void const * argument);
 	//test val
 	uint16_t test_val = 0;
 	uint8_t k = 0;
+	char str_testset[10];
 
 	
 /* USER CODE END 0 */
@@ -201,6 +209,8 @@ int main(void)
 
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 20); //interrupt mode only in the mcu data
   HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode for arduino
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
   HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
@@ -650,9 +660,42 @@ static void MX_GPIO_Init(void)
 		}
 		//from pc
 		if(huart->Instance == USART1){
-			//received search : start - start ?
-			//uint8_t txdata[30] = {0,}; 
-			//HAL_UART_Transmit_IT(&huart2,txdata,30);
+
+		uint8_t rxBuf_sd_p[9];
+
+		char rxlen = sizeof(rxBuf_sd);
+		for(char i =0; i < rxlen; i++)
+		{
+			char stx = i;
+			char etx = (i + rxlen - 1)%rxlen;
+			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
+			{
+					for(char j =0; j < rxlen; j++){
+						char k = (stx + j)%rxlen;
+						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
+					}
+				break;
+			}
+		}
+
+				if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
+						if(rxBuf_sd_p[1] == 's'){
+							char _txt[] = ".txt";
+							strncpy(str_testset, (const char*)rxBuf_sd+2,6);
+							strcat(str_testset,_txt);			
+						//	sdcard_save = true;
+						HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!	
+						} 
+						else if(rxBuf_sd_p[1] == 'e'){		
+							HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+						//	sdcard_save = false;
+						}
+				}
+				else{
+					memset(rxBuf_sd,0,sizeof(uint8_t)*9);
+				}
+	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);	
+			
 		}
 			// from arduino
 		if(huart->Instance == USART6){
@@ -711,30 +754,32 @@ void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
 	//sd
-//	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+	f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 
-//	if(f_open(&SDFile, "test.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(500);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//	}
-//	else{
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		osDelay(2000);
-//		HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
-//		}
-//	
+	if(f_open(&SDFile, "test32.txt", FA_CREATE_ALWAYS | FA_WRITE )== FR_OK){
+	}
+	
+
   /* Infinite loop */
   for(;;)
   {
+	  	if(sdcard_save){
+				if(sdcard_save_check){
+					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+					sdcard_save_check = false;	
+					if(f_open(&SDFile, str_testset , FA_CREATE_ALWAYS | FA_WRITE ) == FR_OK){
+					sdcard_save_ongoing = true;
+					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+					}
+				}
+			}
+		else{
+			if(!sdcard_save_check) {
+				f_close(&SDFile);
+				sdcard_save_check = true;
+				sdcard_save_ongoing = false;
+			}
+		}
 	  if(_5ms_flg){
 		_5ms_flg = false;
 	  
@@ -784,16 +829,13 @@ void StartDefaultTask(void const * argument)
 
 		//	DATA SAVE TO LEFT LEG
 			//5ms data save
-//			if(datasave_flg){
-//			for(int i =0; i<26; i++) {
-//			f_printf(&SDFile, "%02x", txdata[i]);
-//			}
-//			f_printf(&SDFile, "\n");
-//			}
-//			else
-//			{
-//			f_close(&SDFile);
-//			}
+			for(int i =0; i<26; i++) {
+			f_printf(&SDFile, "%02x", txdata[i]);
+			}
+			f_printf(&SDFile, "\n");
+	
+			f_close(&SDFile);
+
 			// received data from pc
 			
 			if(ongoing_flg){ // watchdog timer 100ms check timeout
