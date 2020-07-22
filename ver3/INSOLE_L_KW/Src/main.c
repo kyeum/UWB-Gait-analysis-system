@@ -1,10 +1,10 @@
 /* USER CODE BEGIN Header */
 
-/*Definition in INSOLE_R_KR
+/*Definition in INSOLE Device Comm system
 DATASET :
-INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC) = 16BYTE
-INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 2BYTE(CRC)= 26BYTE
-IMU 		 : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44BYTE
+INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 6BYTE(UWB) + 2BYTE(CRC) = 22BYTE
+INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 12BYTE(UWB) + 2BYTE(CRC)= 38BYTE
+IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 12BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 58BYTE
 
 */
 
@@ -57,20 +57,15 @@ IMU 		 : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 4BYTE(ST/ED) + 2BYTE(CRC) = 44
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
-
 CRC_HandleTypeDef hcrc;
-
 SD_HandleTypeDef hsd;
 DMA_HandleTypeDef hdma_sdio_rx;
 DMA_HandleTypeDef hdma_sdio_tx;
-
 TIM_HandleTypeDef htim4;
-
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart6_rx;
-
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
@@ -96,22 +91,18 @@ void StartDefaultTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 	//Communication buffers
-	uint8_t txdata[20]; // 4 from FFFF,FFFE 18 from Imu, 10 byte from insole 2byte crc : 34 byte 
-
-	// pc recieve buffer
+	uint8_t txdata[22]; // transmit data to Insole_R
 	
-	uint8_t Rxbuf[10] = {0,};
-	uint8_t Rxbuf_ino[8] = {0,};
-	uint8_t Rxbuf_ino_p[8] = {0,};
+	// pc recieve buffer
+	uint8_t Rxbuf_ino[10] = {0,};   //rx from arduino
+	uint8_t Rxbuf_ino_p[10] = {0,}; //rx from arduino parsed
+	uint8_t rxBuf_sd[9]; //rx from sd card
 
-	uint8_t rxBuf_sd[9];
-
-	//ADC dma convert
+	//ADC dma convert array
 	uint16_t adcValArray[5] = {0,};
 	
 	//crcval
-	uint32_t crcArray_send[10] = {0,};
-	
+	uint32_t crcArray_send[10] = {0,}; //crc calculate array
 	uint16_t crcval = 0;
 
 	//SD card variables 
@@ -119,14 +110,15 @@ void StartDefaultTask(void const * argument);
 	extern FATFS SDFatFS;    /* File system object for SD logical drive */
 	extern FIL SDFile;       /* File object for SD */
 		
-	bool sdcard_save = false;
+	// sdcard save flag
+	bool sdcard_save = false; 
 	bool sdcard_save_check = true;
 	bool sdcard_save_ongoing = false;
 	
 	//FILE I/O operation
 	FRESULT res;                                          /* FatFs function common result code */
 	uint32_t byteswritten, bytesread;                     /* File write/read counts */
-	uint8_t wtext[] = "Hello"; 			      /* File write start buffer */
+	uint8_t wtext[] = ""; 			      			  /* File write start buffer */
 	uint8_t rtext[100];                                   /* File read buffer */
 	
 	FATFS myFATAS;
@@ -136,17 +128,17 @@ void StartDefaultTask(void const * argument);
 	//timer
 	uint16_t tmr_ms=0;
 	uint16_t tmr_1000ms=0;
-
 	uint16_t svtmr_ms=0;
 
 	bool _1000ms_flg = false;
+	bool _5ms_flg = false;
+
 	bool datasave_flg = false;
 	//test
 	uint8_t k = 0;
 	bool datatrans_flg = false;
 	bool datatest_flg = false;
 	char str_testset[10];
-
 	bool usart6_dma = true;
 	
 /* USER CODE END 0 */
@@ -190,10 +182,10 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t *)adcValArray, 5);
-  HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9); //receive data from sd card
 
   HAL_TIM_Base_Start_IT(&htim4);
-  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 8); //interrupt mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 10); //interrupt mode only in the mcu data 0xff 0xff data1 data2 data3 data4 data5 data6 0xff 0xfe
 
   
   
@@ -650,8 +642,9 @@ static void MX_GPIO_Init(void)
 		}
 	}
 	
-	if(huart->Instance == USART1){
-
+	// data received from sd card -> if received ??? data parse and save
+	
+	if(huart->Instance == USART1){ 
 		uint8_t rxBuf_sd_p[9];
 
 		char rxlen = sizeof(rxBuf_sd);
@@ -726,33 +719,28 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {  
 	  
-	 	  	if(sdcard_save){
-				if(sdcard_save_check){
-					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-					sdcard_save_check = false;	
-					if(f_open(&SDFile, str_testset , FA_CREATE_ALWAYS | FA_WRITE ) == FR_OK){
-					sdcard_save_ongoing = true;
-					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-					}
-				}
-			}
-		else{
-			if(!sdcard_save_check) {
-				f_close(&SDFile);
-				sdcard_save_check = true;
-				sdcard_save_ongoing = false;
-			}
-		} 
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	if(_1000ms_flg) // 5ms data send
+//	 	  	if(sdcard_save){
+//				if(sdcard_save_check){
+//					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+//					sdcard_save_check = false;	
+//					if(f_open(&SDFile, str_testset , FA_CREATE_ALWAYS | FA_WRITE ) == FR_OK){
+//					sdcard_save_ongoing = true;
+//					//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+//					}
+//				}
+//			}
+//		else{
+//			if(!sdcard_save_check) {
+//				f_close(&SDFile);
+//				sdcard_save_check = true;
+//				sdcard_save_ongoing = false;
+//			}
+//		} 
+//	  
+//	 
+	if(_5ms_flg) // 5ms data send
 		{
-		_1000ms_flg = false;
+		_5ms_flg = false;
 		txdata[0] = 0xFF;
 		txdata[1] = 0xFF;
 	
@@ -762,18 +750,18 @@ void StartDefaultTask(void const * argument)
 		txdata[3+a] = adcValArray[i] & 0xFF;//lo	
 		}
 		
-		for(int i =0; i < 4; i ++){
+		for(int i =0; i < 6; i ++){
 		txdata [12+i]  = Rxbuf_ino_p[2+i]; // signed short uwb data to txdata
 		}
 		
-		memset(crcArray_send,0,10*sizeof(crcArray_send[0])); // 
-		memcpy(&crcArray_send[0],&txdata[2] , 14); 
+		memset(crcArray_send,0,10*sizeof(crcArray_send[0])); // reset crcarraysend
+		memcpy(&crcArray_send[0],&txdata[2] , 16); // reset crcarraysend
 		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,4)& 0xffff;
 		
-		txdata[16] = crcval >> 8; 
-		txdata[17] = crcval & 0xff;
-		txdata[18] = 0xFF;
-		txdata[19] = 0xFE;
+		txdata[18] = crcval >> 8; 
+		txdata[19] = crcval & 0xff;
+		txdata[20] = 0xFF;
+		txdata[21] = 0xFE;
 	
 	//TRANSMIT DATA TO PC
 		//	DATA SAVE TO LEFT LEG	
@@ -789,7 +777,7 @@ void StartDefaultTask(void const * argument)
 //			}
 			
 			
-			HAL_UART_Transmit_IT(&huart1,txdata,20);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
+			HAL_UART_Transmit_IT(&huart1,txdata,22);  // 4byte + 18 + 10 byte(insole right)+ CRC 2  + tmr 2: 46 byte
 			
 			if(datatest_flg) // 1sec flash out
 			{
@@ -828,7 +816,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if(tmr_ms%5 == 0)
 		{
 			k++;
-			_1000ms_flg = true;
+			_5ms_flg = true;
 			HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_14);
 			tmr_ms = 0;
 		}

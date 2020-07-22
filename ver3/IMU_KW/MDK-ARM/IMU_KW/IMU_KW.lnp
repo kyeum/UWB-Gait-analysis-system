@@ -29,6 +29,8 @@
 "imu_kw\stm32f4xx_hal_cortex.o"
 "imu_kw\stm32f4xx_hal.o"
 "imu_kw\stm32f4xx_hal_exti.o"
+"imu_kw\stm32f4xx_hal_sdram.o"
+"imu_kw\stm32f4xx_ll_utils.o"
 "imu_kw\system_stm32f4xx.o"
 "imu_kw\diskio.o"
 "imu_kw\ff.o"
