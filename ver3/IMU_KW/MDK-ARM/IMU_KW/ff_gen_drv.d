@@ -22,9 +22,9 @@ imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
 imu_kw\ff_gen_drv.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h
-imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h
+imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 imu_kw\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
@@ -56,4 +56,3 @@ imu_kw\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
 imu_kw\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 imu_kw\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 imu_kw\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
-imu_kw\ff_gen_drv.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h

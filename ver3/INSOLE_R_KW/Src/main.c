@@ -1,11 +1,14 @@
 /* USER CODE BEGIN Header */
 
 /*Definition in INSOLE Device Comm system
-DATASET :
 INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 6BYTE(UWB) + 2BYTE(CRC) = 22BYTE
-INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 12BYTE(UWB) + 2BYTE(CRC)= 38BYTE
-IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 12BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 58BYTE
+***INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 12BYTE(UWB) + 2BYTE(CRC) = 28BYTE
 
+INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 12BYTE(UWB) + 2BYTE(CRC)= 38BYTE
+***INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 24BYTE(UWB) + 2BYTE(CRC)= 50BYTE
+
+IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 12BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 58BYTE
+***IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 24BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 70BYTE
 */
 /**
   ******************************************************************************
@@ -95,9 +98,9 @@ void StartDefaultTask(void const * argument);
 	bool dma_connect = false;
 	bool data_received_dma = true;
 	
-	uint8_t txdata[38]; //rx byffer
-	uint8_t rxBuf_[22] = {0};
-	uint8_t rxBuf_crc[22] = {0};
+	uint8_t txdata[50]; //rx byffer
+	uint8_t rxBuf_[28] = {0};
+	uint8_t rxBuf_crc[28] = {0};
 
 	//Inturrupt comm
 	uint8_t buff_index = 0;
@@ -107,15 +110,15 @@ void StartDefaultTask(void const * argument);
 	uint8_t rxBuf_sd[9];
 
 	//UWB comm
-	uint8_t Rxbuf_ino[10] = {0}; //rx from arduino
-	uint8_t Rxbuf_ino_p[10] = {0}; //rx from arduino parsed
+	uint8_t Rxbuf_ino[16] = {0}; //rx from arduino
+	uint8_t Rxbuf_ino_p[16] = {0}; //rx from arduino parsed
 
 	//ADC DMA
 	uint16_t adcValArray[5] = {0,};
 
 	//crc
 	uint32_t crcArray[8] = {0,}; // crc for save
-	uint32_t crcArray_send[10] = {0,}; // crc for send
+	uint32_t crcArray_send[12] = {0,}; // crc for send
 	uint16_t crcval = 0; // calculate crc data for test
 	
 	//buff calcualtion
@@ -204,8 +207,8 @@ int main(void)
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 22); //interrupt dma mode only in the mcu data
-  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 10); //interrupt dma mode for arduino
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 28); //interrupt dma mode only in the mcu data
+  HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 16); //interrupt dma mode for arduino
   HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9); //receive data from sd card
 
 
@@ -646,7 +649,7 @@ static void MX_GPIO_Init(void)
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
 					dma_connect = true;
-					memcpy(&rxBuf_[0], &rxBuf_crc[0], 22 );
+					memcpy(&rxBuf_[0], &rxBuf_crc[0], 28 );
 				}
 				else
 				{
@@ -656,45 +659,45 @@ static void MX_GPIO_Init(void)
 				}
 				test_val++;
 		}
-		//from pc
-		if(huart->Instance == USART1){
+//		//from pc
+//		if(huart->Instance == USART1){
 
-		uint8_t rxBuf_sd_p[9];
+//		uint8_t rxBuf_sd_p[9];
 
-		char rxlen = sizeof(rxBuf_sd);
-		for(char i =0; i < rxlen; i++)
-		{
-			char stx = i;
-			char etx = (i + rxlen - 1)%rxlen;
-			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
-			{
-					for(char j =0; j < rxlen; j++){
-						char k = (stx + j)%rxlen;
-						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
-					}
-				break;
-			}
-		}
+//		char rxlen = sizeof(rxBuf_sd);
+//		for(char i =0; i < rxlen; i++)
+//		{
+//			char stx = i;
+//			char etx = (i + rxlen - 1)%rxlen;
+//			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
+//			{
+//					for(char j =0; j < rxlen; j++){
+//						char k = (stx + j)%rxlen;
+//						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
+//					}
+//				break;
+//			}
+//		}
 
-				if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
-						if(rxBuf_sd_p[1] == 's'){
-							char _txt[] = ".txt";
-							strncpy(str_testset, (const char*)rxBuf_sd+2,6);
-							strcat(str_testset,_txt);			
-						//	sdcard_save = true;
-						HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!	
-						} 
-						else if(rxBuf_sd_p[1] == 'e'){		
-							HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-						//	sdcard_save = false;
-						}
-				}
-				else{
-					memset(rxBuf_sd,0,sizeof(uint8_t)*9);
-				}
-	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);	
-			
-		}
+//				if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
+//						if(rxBuf_sd_p[1] == 's'){
+//							char _txt[] = ".txt";
+//							strncpy(str_testset, (const char*)rxBuf_sd+2,6);
+//							strcat(str_testset,_txt);			
+//						//	sdcard_save = true;
+//						HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!	
+//						} 
+//						else if(rxBuf_sd_p[1] == 'e'){		
+//							HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+//						//	sdcard_save = false;
+//						}
+//				}
+//				else{
+//					memset(rxBuf_sd,0,sizeof(uint8_t)*9);
+//				}
+//	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);	
+//			
+//		}
 			// from arduino
 		if(huart->Instance == USART6){
 				//received search : start - start ?
@@ -720,7 +723,7 @@ static void MX_GPIO_Init(void)
 						}
 					}
 				}
-		HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 10);
+		HAL_UART_Receive_DMA(&huart6, (uint8_t *)Rxbuf_ino, 16);
 			}	
 }
 
@@ -793,18 +796,18 @@ void StartDefaultTask(void const * argument)
 
 		if(received_flag) { 
 		received_flag = false;
-		uint8_t cprxBuf[22];
-		memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*22); 
+		uint8_t cprxBuf[28];
+		memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*28); 
 
 		memset(crcArray,0,8*sizeof(crcArray[0]));
-		memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*16); 
-			char crc_begin = 18;
-			char crc_end = 19;   //LLSB	 20 = FF 21 = FE
+		memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*22); 
+			char crc_begin = 24;
+			char crc_end = 25;   //LLSB	 20 = FF 21 = FE 28 - 27 26
 			receive_val = (int16_t)(((int16_t)cprxBuf[crc_begin] << 8) | cprxBuf[crc_end]);
-			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,4)&0xffff);
+			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,5)&0xffff);
 			if(cal_val == receive_val)
 			{
-				memmove(&txdata[12], &cprxBuf[2], sizeof(uint8_t)*16);
+				memmove(&txdata[12], &cprxBuf[2], sizeof(uint8_t)*22);
 			}			
 			else if( cal_val != receive_val)
 			{
@@ -812,18 +815,18 @@ void StartDefaultTask(void const * argument)
 				continue;
 			}
 		}
-		for(int i =0; i < 6; i ++){
-		txdata [28+i]  = Rxbuf_ino_p[2+i]; // signed short uwb data to txdata
+		for(int i =0; i < 12; i ++){
+		txdata [34+i]  = Rxbuf_ino_p[2+i]; // signed short uwb data to txdata
 		}
 
-		memset(crcArray_send,0,10*sizeof(crcArray_send[0]));
-		memcpy(&crcArray_send[0], &txdata[2] , 32); 
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,8)& 0xffff;
+		memset(crcArray_send,0,12*sizeof(crcArray_send[0]));
+		memcpy(&crcArray_send[0], &txdata[2] , 44); 
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,11)& 0xffff;
 	
-		txdata[34] = crcval >> 8; 
-		txdata[35] = crcval & 0xff;
-		txdata[36] = 0xFF;
-		txdata[37] = 0xFE;
+		txdata[46] = crcval >> 8; 
+		txdata[47] = crcval & 0xff;
+		txdata[48] = 0xFF;
+		txdata[49] = 0xFE;
 
 		//	DATA SAVE TO LEFT LEG
 			//5ms data save
@@ -836,14 +839,8 @@ void StartDefaultTask(void const * argument)
 
 			// received data from pc
 			
-			if(ongoing_flg){ // watchdog timer 100ms check timeout
-				ongoing_flg = false;
-				wdg_tmr ++;
-				if(wdg_tmr%10 == 0) HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_13);
-				if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 22); //interrupt mode only in the mcu data
-			}
 			// crc error
-			HAL_UART_Transmit_IT(&huart1,txdata,38); //			
+			HAL_UART_Transmit_IT(&huart1,txdata,50); //			
 		}
 //	TRANSMIT DATA TO LEFT LEG	
 	}
@@ -881,8 +878,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			_100ms_tmr = 0;
 		}
 		
-		if(ms_sv_tmr % 10000 == 0){ // 10sec later - data save -> will change mode in the pc data
+		if(ms_sv_tmr % 100 == 0){ // 10sec later - data save -> will change mode in the pc data
 			datasave_flg = false;		
+			if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 28); //interrupt dma mode only in the mcu data
+
 			ms_sv_tmr = 0;
 		}
 	}

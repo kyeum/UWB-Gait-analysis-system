@@ -1,10 +1,4 @@
-/*Definition in INSOLE Device Comm system
-DATASET :
-INSOLE_L : 10BYTE(FSR) + 4BYTE(ST/ED) + 6BYTE(UWB) + 2BYTE(CRC) = 22BYTE
-INSOLE_R : 20BYTE(FSR) + 4BYTE(ST/ED) + 12BYTE(UWB) + 2BYTE(CRC)= 38BYTE
-IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 12BYTE(UWB) + 4BYTE(ST/ED) + 2BYTE(CRC) = 58BYTE
-
-*/
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -23,7 +17,6 @@ IMU      : 2Byte(TMR) + 20BYTE(FSR) + 18BYTE(IMU) + 12BYTE(UWB) + 4BYTE(ST/ED) +
   ******************************************************************************
   */
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
@@ -94,15 +87,20 @@ float aRes, gRes, mRes;      // scale resolutions per LSB for the sensors
 
 /* Private variables ---------------------------------------------------------*/
 CRC_HandleTypeDef hcrc;
+
 I2C_HandleTypeDef hi2c1;
+
 SD_HandleTypeDef hsd;
 DMA_HandleTypeDef hdma_sdio_rx;
 DMA_HandleTypeDef hdma_sdio_tx;
+
 TIM_HandleTypeDef htim4;
+
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart6;
 DMA_HandleTypeDef hdma_usart2_rx;
+
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 	
@@ -127,7 +125,7 @@ void StartDefaultTask(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */	
+/* USER CODE BEGIN 0 */
 	void initMPU9250(void);
 	void initAK8963(void);
 	// watchdog
@@ -143,10 +141,10 @@ void StartDefaultTask(void const * argument);
 
 	// Communication
 	bool received_flag = false;
-	uint8_t txdata[58]; // transmit data to pc
-	uint8_t rxBuf[38];
-	uint8_t rxBuf_[38];
-	uint8_t rxBuf_crc[38];
+	uint8_t txdata[70]; // transmit data to pc
+	uint8_t rxBuf[50];
+	uint8_t rxBuf_[50];
+	uint8_t rxBuf_crc[50];
 	uint8_t rxBuf_sd[9];
 	
 	uint8_t i2cBuf[7];
@@ -156,8 +154,8 @@ void StartDefaultTask(void const * argument);
 	bool data_received_dma = true;
 		
 	//crc
-	uint32_t crcArray[8] = {0,};
-	uint32_t crcArray_send[13] = {0,};
+	uint32_t crcArray[12] = {0,};
+	uint32_t crcArray_send[16] = {0,};
 	uint16_t crcval = 0;
 	
 	//SD card variables 
@@ -230,10 +228,11 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
+  MX_FATFS_Init();
   MX_CRC_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 38); //interrupt mode only in the mcu data
+	HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 50); //interrupt mode only in the mcu data
 	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
 	HAL_TIM_Base_Start_IT(&htim4);
 	
@@ -269,9 +268,8 @@ int main(void)
 
   /* Start scheduler */
   osKernelStart();
-  
-  /* We should never get here as control is now taken by the scheduler */
 
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -293,11 +291,12 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure the main internal regulator output voltage 
+  /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -311,7 +310,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -558,10 +557,10 @@ static void MX_USART6_UART_Init(void)
 
 }
 
-/** 
+/**
   * Enable DMA controller clock
   */
-static void MX_DMA_Init(void) 
+static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
@@ -570,13 +569,13 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Stream5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
   /* DMA2_Stream3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
   /* DMA2_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream6_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream6_IRQn);
 
 }
@@ -775,7 +774,7 @@ void initMPU9250()
 				if(rxBuf_crc[0] == 0xFF && rxBuf_crc[1] == 0xFF){
 					received_flag = true;
 					dma_connect = true;
-					memcpy(&rxBuf_[0], &rxBuf_crc[0], 38 );
+					memcpy(&rxBuf_[0], &rxBuf_crc[0], 50 );
 				}
 				else
 				{
@@ -784,45 +783,45 @@ void initMPU9250()
 				}
 				test_val++;
 	}
-	if(huart->Instance == USART1){
-		// comm data set mininig!
-		uint8_t rxBuf_sd_p[9];
+//	if(huart->Instance == USART1){
+//		// comm data set mininig!
+//		uint8_t rxBuf_sd_p[9];
 
-		char rxlen = sizeof(rxBuf_sd);
-		for(char i =0; i < rxlen; i++)
-		{
-			char stx = i;
-			char etx = (i + rxlen - 1)%rxlen;
-			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
-			{
-					for(char j =0; j < rxlen; j++){
-						char k = (stx + j)%rxlen;
-						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
-					}
-				break;
-			}
-			}
+//		char rxlen = sizeof(rxBuf_sd);
+//		for(char i =0; i < rxlen; i++)
+//		{
+//			char stx = i;
+//			char etx = (i + rxlen - 1)%rxlen;
+//			if(rxBuf_sd[stx] == '*' && rxBuf_sd[(etx)] == ';')
+//			{
+//					for(char j =0; j < rxlen; j++){
+//						char k = (stx + j)%rxlen;
+//						rxBuf_sd_p[j] = rxBuf_sd[k]; // data parse AND SAVE CUR
+//					}
+//				break;
+//			}
+//			}
 
-		if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
-			if(rxBuf_sd_p[1] == 's'){
-					char _txt[] = ".txt";
-					strncpy(str_testset, (const char*)rxBuf_sd+2,6);
-					strcat(str_testset,_txt);			
-				//	sdcard_save = true;
-							
-					HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!
-							
-			} 
-			else if(rxBuf_sd_p[1] == 'e'){		
-					HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-				//	sdcard_save = false;
-			}
-		}
-	else{
-			memset(rxBuf_sd,0,sizeof(uint8_t)*9);
-		}
-	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
-	}				
+//		if(rxBuf_sd_p[0] == '*' && rxBuf_sd_p[8] ==';'){
+//			if(rxBuf_sd_p[1] == 's'){
+//					char _txt[] = ".txt";
+//					strncpy(str_testset, (const char*)rxBuf_sd+2,6);
+//					strcat(str_testset,_txt);			
+//				//	sdcard_save = true;
+//							
+//					HAL_UART_Transmit_IT(&huart2,rxBuf_sd_p,9); // data send to other bluetooth!
+//							
+//			} 
+//			else if(rxBuf_sd_p[1] == 'e'){		
+//					HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
+//				//	sdcard_save = false;
+//			}
+//		}
+//	else{
+//			memset(rxBuf_sd,0,sizeof(uint8_t)*9);
+//		}
+//	HAL_UART_Receive_IT(&huart1, (uint8_t *)rxBuf_sd, 9);
+//	}				
 }
 
 
@@ -843,10 +842,6 @@ void wdg_activate(){
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-	
-  /* init code for FATFS */
-  MX_FATFS_Init();
-
   /* USER CODE BEGIN 5 */
 //		f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
 //	
@@ -884,22 +879,22 @@ void StartDefaultTask(void const * argument)
 		txdata[3] = send_10ms_tmr & 0xff;				
 			
 		if(received_flag) { 
-			uint8_t cprxBuf[38];
-			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*38); 
+			uint8_t cprxBuf[50];
+			memcpy(&cprxBuf[0], &rxBuf_[0], sizeof(uint8_t)*50); 
 			received_flag = false;
-			memset(crcArray,0,8*sizeof(crcArray[0]));
-			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*32); 
-			char crc_begin = 34; //MLSB 36 = FF 37 = FE
-			char crc_end = 35;   
+			memset(crcArray,0,12*sizeof(crcArray[0]));
+			memmove(&crcArray[0], &cprxBuf[2], sizeof(uint8_t)*44); 
+			char crc_begin = 46; //MLSB 36 = FF 37 = FE 49 48 47 46
+			char crc_end = 47;   
 			receive_val = (int16_t)(((int16_t)cprxBuf[crc_begin] << 8) | cprxBuf[crc_end]);
-			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,8)&0xffff);
+			cal_val = (HAL_CRC_Calculate(&hcrc,crcArray,11)&0xffff);
 			if(cal_val == receive_val)
 			{
-				memmove(&txdata[4], &cprxBuf[2], sizeof(uint8_t)*32); 
+				memmove(&txdata[4], &cprxBuf[2], sizeof(uint8_t)*44); 
 			}			
 			else
 			{
-				memset(rxBuf_,0,sizeof(uint8_t)*38);
+				memset(rxBuf_,0,sizeof(uint8_t)*44);
 				// set watch dog -> set 0_ rxBuf_
 				wdg_cnt ++;
 				continue;
@@ -910,24 +905,24 @@ void StartDefaultTask(void const * argument)
 		readMagData(&mag_[0]);
 		readGyroData(&gy_[0]); 
 	
-		memmove(&txdata[36], &acc_[0],6); 
-		memmove(&txdata[42], &mag_[0],6); 
-		memmove(&txdata[48], &gy_[0],6);  //54
+		memmove(&txdata[48], &acc_[0],6); 
+		memmove(&txdata[54], &mag_[0],6); 
+		memmove(&txdata[60], &gy_[0],6);  //54
 
-		memset(crcArray_send,0,13*sizeof(crcArray_send[0])); // reset
+		memset(crcArray_send,0,16*sizeof(crcArray_send[0])); // reset 70 - 6 = 64 
 
-		for(int i =0; i <13; i++)
+		for(int i =0; i <16; i++)
 		{
 			char c = 4*i;
 			crcArray_send[i] = ((uint32_t)txdata[c+2] << 24) | ((uint32_t)txdata[c+3] << 16) | ((uint32_t)txdata[c+4] << 8) | ((uint32_t)txdata[c+5]);
 		}
 		
-		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,13)& 0xffff;
+		crcval = HAL_CRC_Calculate(&hcrc,crcArray_send,16)& 0xffff;
 	
-		txdata[54] = crcval >> 8; 
-		txdata[55] = crcval & 0xff;
-		txdata[56] = 0xFF;
-		txdata[57] = 0xFE;
+		txdata[66] = crcval >> 8; 
+		txdata[67] = crcval & 0xff;
+		txdata[68] = 0xFF;
+		txdata[69] = 0xFE;
 	
 		//<*sdcard send--------------------------------------------------------------->//
 		/*
@@ -942,10 +937,10 @@ void StartDefaultTask(void const * argument)
 		*/
 		//<*sdcard send--------------------------------------------------------------->//
 		
-		HAL_UART_Transmit_IT(&huart1,txdata,58);
+		HAL_UART_Transmit_IT(&huart1,txdata,70);
 	}
   }
-  /* USER CODE END 5 */ 
+  /* USER CODE END 5 */
 }
 
 /**
@@ -980,7 +975,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		
 		if(ms_sv_tmr % 100 == 0){ // 10sec later - date
 			datasave_flg = false;
-		if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 38); //interrupt mode only in the mcu data
+		if(!dma_connect) HAL_UART_Receive_DMA(&huart2, (uint8_t *)rxBuf_crc, 50); //interrupt mode only in the mcu data
 			ms_sv_tmr = 0;
 		}
 		
@@ -1011,7 +1006,7 @@ void Error_Handler(void)
   * @retval None
   */
 void assert_failed(uint8_t *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
@@ -1020,20 +1015,6 @@ void assert_failed(uint8_t *file, uint32_t line)
 
   /* USER CODE END 6 */
 }
-
-/*
-LOG
-20200521 - EY
-SD CARD - WITHOUT SENDING PROCEDURE IN IMU BOARD 
-
-
-
-
-
-
-*/
-
-
 #endif /* USE_FULL_ASSERT */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
