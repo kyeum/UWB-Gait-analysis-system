@@ -1,4 +1,4 @@
-# HelloSTM32
+# UWB for Gait Anaylsis System
 STM32 structurer configuration
 First set up for STM32 using private pcb board using STM32F411
 
